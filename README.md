@@ -82,7 +82,18 @@ xcodegen generate --spec Tools/project.yml
 
 Xcode 打开 `Kinter.xcodeproj`，选中你的设备，Signing 选 Personal Team，Cmd+R。
 
-### 3. 构建未签名 IPA
+### 3. 直接安装预构建 IPA（省去编译）
+
+仓库已附带开箱即用的未签名 IPA（含最新音乐播放能力）：
+
+**下载：[Releases/Kinter-unsigned-1.1.0.ipa](Releases/Kinter-unsigned-1.1.0.ipa)**
+
+安装方式（任选其一）：
+- **TrollStore**：直接安装（设备系统版本需在支持区间）
+- **SideStore / AltStore / Sideloadly**：自签安装（需 Apple ID，7 天续签一次）
+- 安装后首次启动前：设置 → 隐私与安全性 → **开发者模式** 开启
+
+如需自己构建：
 
 ```bash
 chmod +x Tools/build_unsigned_ipa.sh
