@@ -156,6 +156,10 @@
 原生框架：AVFoundation / AVAudioPlayer。
 原理：播放本地音频文件，支持播放/暂停/停止/跳转。
 
+### 音乐播放（music.play，L0）
+原生框架：AVFoundation / AVPlayer。
+原理：播放本地文件或 http(s) 远程音乐，支持暂停/恢复/停止/跳转、循环（`loop`）、音量（`volume`）与完整状态查询（`getState`）。宿主已声明 `UIBackgroundModes=audio`，锁屏/退后台后音乐继续播放。
+
 ### 持续定位（locationWatch.start，L1）
 原生框架：CoreLocation / CLLocationManager。
 原理：请求定位权限后启动 `startUpdatingLocation`，持续把坐标通过事件通道推送给 JS（`wx.on` 订阅）。

@@ -98,6 +98,8 @@ enum PermissionCatalog {
               simulator: .available, simulatorNote: nil),
         .init(id: "audio", displayName: "音频播放", detail: "播放本地音频", level: .l0,
               simulator: .available, simulatorNote: nil),
+        .init(id: "music", displayName: "音乐播放", detail: "播放本地/网络音乐，支持循环、音量与后台播放", level: .l0,
+              simulator: .available, simulatorNote: nil),
         .init(id: "locationWatch", displayName: "持续定位", detail: "订阅位置更新", level: .l1,
               simulator: .degraded, simulatorNote: "返回固定模拟坐标"),
         .init(id: "bluetoothScan", displayName: "蓝牙扫描", detail: "扫描附近蓝牙设备", level: .l1,

@@ -69,6 +69,7 @@ final class CapabilityRegistry {
         register(QRGenerateProvider.self)
         register(OCRProvider.self)
         register(AudioPlayerProvider.self)
+        register(MusicProvider.self)
         register(LocationWatchProvider.self)
         register(BluetoothScanProvider.self)
         register(CommunicationProvider.self)

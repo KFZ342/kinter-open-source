@@ -151,6 +151,20 @@ wx.off('websocket.message', h);  // 退订（不传 handler 则清空该事件�
 
 `wx.playAudio({path})` / `wx.pauseAudio()` / `wx.stopAudio()` / `wx.seekAudio({position})`
 
+### 音乐（`music`，L0，AVPlayer）
+
+本地文件或 http(s) 远程 URL，支持后台播放（宿主已声明 `UIBackgroundModes=audio`）：
+
+| API | 说明 |
+|---|---|
+| `wx.playMusic({path, loop?, volume?, position?})` | 播放，path 为本地路径或 URL；loop 循环；volume 0-1；position 起始秒 |
+| `wx.pauseMusic()` | 暂停（保留进度） |
+| `wx.resumeMusic()` | 恢复 |
+| `wx.stopMusic()` | 停止并释放 |
+| `wx.seekMusic({position})` | 跳转（秒） |
+| `wx.getMusicState()` | 返回 `{playing, paused, duration, position, volume, loop}` |
+| `wx.setMusicVolume({volume})` | 音量 0-1 |
+
 ### TTS（`tts`，L0）
 
 `wx.speak({text, rate?})` / `wx.stopSpeaking()`

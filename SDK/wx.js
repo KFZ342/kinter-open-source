@@ -147,6 +147,15 @@
     stopAudio: function (o) { return invoke('audio', 'stop', o); },
     seekAudio: function (o) { return invoke('audio', 'seek', o); },
 
+    // ===== 音乐（AVPlayer，支持本地/远程 URL、循环、音量、后台播放）=====
+    playMusic: function (o) { return invoke('music', 'play', o); },
+    pauseMusic: function (o) { return invoke('music', 'pause', o); },
+    resumeMusic: function (o) { return invoke('music', 'resume', o); },
+    stopMusic: function (o) { return invoke('music', 'stop', o); },
+    seekMusic: function (o) { return invoke('music', 'seek', o); },
+    getMusicState: function (o) { return invoke('music', 'getState', o); },
+    setMusicVolume: function (o) { return invoke('music', 'setVolume', o); },
+
     // ===== TTS =====
     speak: function (o) { return invoke('tts', 'speak', o); },
     stopSpeaking: function (o) { return invoke('tts', 'stop', o); },
