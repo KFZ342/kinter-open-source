@@ -258,12 +258,30 @@ enum AIPrompt {
     wx.printFile({ path: String })
         打印 PDF 或图片。resolve { ok: Boolean, cancelled: Boolean }
 
-    # 完整 API 索引
+    ## 音乐（AVPlayer，支持本地文件与 http(s) 远程 URL）
 
-    以下是从 SDK 自动生成的全部可用 API 名，按模块分组。
-    **你只能使用这些 API，不要编造任何不在列表中的方法。**
+    wx.playMusic({ path: String, loop?: Boolean, volume?: Number, position?: Number })
+        开始播放。path 是本地文件路径或 http(s) URL；loop 循环播放；volume 0-1（默认 1）；
+        position 起始播放位置（秒）。
+        resolve { ok: Boolean, duration: Number }。duration 未知时为 0。
 
-    \(apiIndex)
+    wx.pauseMusic({})
+        暂停（保留进度）。resolve { ok: true }
+
+    wx.resumeMusic({})
+        从暂停处继续。resolve { ok: true }
+
+    wx.stopMusic({})
+        停止并释放播放器。resolve { ok: true }
+
+    wx.seekMusic({ position: Number })
+        跳转到指定秒数。resolve { ok: true }
+
+    wx.getMusicState({})
+        resolve { playing: Boolean, paused: Boolean, duration: Number, position: Number, volume: Number, loop: Boolean }
+
+    wx.setMusicVolume({ volume: Number })
+        音量 0-1。resolve { ok: true, volume: Number }
 
     # 完整 API 索引
 
@@ -342,6 +360,13 @@ enum AIPrompt {
     7. 禁止使用 alert / confirm / prompt，用 wx.toast / wx.showModal。
     8. 代码必须能直接在 WKWebView 里运行。
 
+    # 完整 API 索引
+
+    以下是从 SDK 自动生成的全部可用 API 名，按模块分组。
+    **你只能使用这些 API，不要编造任何不在列表中的方法。**
+
+    \(apiIndex)
+
     # 可用能力清单
 
     \(capabilityList)
@@ -353,6 +378,7 @@ enum AIPrompt {
     - 原有的功能还在吗？（没有被意外删掉吧）
     - 用户要求改的地方改到位了吗？
     - files 里有 index.html 和 icon.svg 吗？
+    - 用到的 wx API 都在上面的索引和规格里吗？
 
     只输出 JSON。
     """

@@ -105,20 +105,20 @@ wx.off('websocket.message', h);  // 退订（不传 handler 则清空该事件�
 
 | API | 说明 |
 |---|---|
-| `wx.getDataPath()` | 数据根目录 |
-| `wx.makeDirectory({path})` | 建目录 |
-| `wx.listDirectory({path})` | 列目录 |
-| `wx.writeFile({path, data})` | 写文件 |
-| `wx.readFile({path})` | 读文件 |
-| `wx.removeFile({path})` | 删文件/目录 |
-| `wx.listFiles({path?})` | 递归列出文件 |
+| `wx.getDataPath()` | 数据根目录，返回 `{path, exists}` |
+| `wx.makeDirectory({name})` | 建目录，返回 `{ok, path}` |
+| `wx.listDirectory({name?})` | 列目录（不传列根目录），返回 `{files, path}` |
+| `wx.writeFile({name, data})` | 写文件（name 可含子路径如 `notes/a.txt`，父目录自动创建），返回 `{path, size}` |
+| `wx.readFile({name})` | 读文件，返回 `{data, path}` |
+| `wx.removeFile({name})` | 删文件/目录，返回 `{ok}` |
+| `wx.listFiles({name?})` | 列文件（同 listDirectory），返回 `{files, path}` |
 
 ### 网络（`http` / `upload`，L0）
 
 | API | 说明 |
 |---|---|
 | `wx.request({url, method?, headers?, body?, timeout?})` | HTTP 请求；响应体上限 10MB，超时默认 30s（上限 60s） |
-| `wx.upload({url, filePath, name?, headers?})` | multipart 上传文件 |
+| `wx.upload({url, filePath, field?, fileName?, mime?, fields?, headers?})` | multipart 上传文件 |
 
 ### WebSocket（`websocket`，L0）
 
