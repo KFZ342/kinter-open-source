@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Demo</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system;margin:0;padding:16px;background:#f2f2f7}
+h1{font-size:18px;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{padding:12px;font-size:14px;border:none;border-radius:10px;background:#007aff;color:#fff;font-weight:500}
+button:active{opacity:.7}
+#batch{width:100%;margin-top:8px;background:#ff9500}
+#log{background:#fff;border-radius:10px;padding:12px;font-family:ui-monospace,monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;margin-top:12px;min-height:120px;max-height:50vh;overflow:auto}
+</style>
+</head>
+<body>
+<h1>MiniAppHost · 能力清单</h1>
+<div class="grid">
+<button onclick="t('camera','chooseImage',{count:1})">相机</button>
+<button onclick="t('photo','chooseMedia',{count:1})">相册</button>
+<button onclick="t('location','getCurrent',{})">定位</button>
+<button onclick="t('deviceInfo','get',{})">设备信息</button>
+<button onclick="t('battery','get',{})">电池</button>
+<button onclick="t('network','get',{})">网络</button>
+<button onclick="t('storage','set',{key:'k',data:'v'})">存</button>
+<button onclick="t('storage','get',{key:'k'})">读</button>
+<button onclick="t('clipboard','set',{data:'hello'})">写剪贴板</button>
+<button onclick="t('clipboard','get',{})">读剪贴板</button>
+<button onclick="t('vibrate','short',{})">震动</button>
+<button onclick="t('openURL','open',{url:'https://apple.com'})">开URL</button>
+<button onclick="t('share','text',{text:'分享内容'})">分享</button>
+<button onclick="t('notification','requestPermission',{})">通知授权</button>
+<button onclick="t('notification','schedule',{title:'Hi',body:'测试',after:2})">2秒通知</button>
+<button onclick="t('contacts','getAll',{})">通讯录</button>
+<button onclick="t('calendar','list',{})">日历列表</button>
+<button onclick="t('reminder','add',{title:'测试'})">加提醒</button>
+<button onclick="t('speech','recognizeOnce',{})">语音识别</button>
+<button onclick="t('health','stepCount',{})">步数</button>
+<button onclick="t('bluetooth','scan',{})">蓝牙</button>
+<button onclick="t('motion','deviceMotion',{})">陀螺仪</button>
+<button onclick="t('biometric','authenticate',{reason:'验证'})">FaceID</button>
+<button onclick="t('files','list',{})">列文件</button>
+<button onclick="t('http','request',{url:'https://httpbin.org/get'})">HTTP</button>
+</div>
+<button id="batch" onclick="runAll()">⚡ 批量自测全部</button>
+<div id="log">点按钮测试…</div>
+
+<script>
+var log = document.getElementById('log');
+var SEQ = 0;
+var PENDING = {};
+
+function invoke(module, method, params) {
+  return new Promise(function(resolve, reject) {
+    var w = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge;
+    if (!w) { reject({code:'bridge_unavailable'}); return; }
+    SEQ += 1;
+    var id = 'cb_' + SEQ;
+    PENDING[id] = { resolve: resolve, reject: reject };
+    w.postMessage({ module: module, method: method, params: params || {}, callbackId: id });
+  });
+}
+
+window.__wxBridgeCallback = function(p) {
+  if (!p || !p.callbackId) return;
+  var e = PENDING[p.callbackId];
+  if (!e) return;
+  delete PENDING[p.callbackId];
+  if (p.ok) { e.resolve(p.data); } else { e.reject(p.error || {code:'unknown'}); }
+};
+
+function t(module, method, params) {
+  log.textContent = '→ ' + module + '.' + method;
+  invoke(module, method, params).then(function(data) {
+    log.textContent = JSON.stringify(data, null, 2);
+  }).catch(function(err) {
+    log.textContent = JSON.stringify(err, null, 2);
+  });
+}
+
+var TESTS = [
+  ['设备信息','deviceInfo','get',{}],
+  ['电池','battery','get',{}],
+  ['网络','network','get',{}],
+  ['剪贴板写','clipboard','set',{data:'batch'}],
+  ['剪贴板读','clipboard','get',{}],
+  ['存储写','storage','set',{key:'bk',data:'bv'}],
+  ['存储读','storage','get',{key:'bk'}],
+  ['文件列','files','list',{}],
+  ['文件写','files','write',{name:'t.txt',data:'hi'}],
+  ['文件读','files','read',{name:'t.txt'}],
+  ['震动','vibrate','short',{}],
+  ['HTTP','http','request',{url:'https://httpbin.org/get'}],
+  ['陀螺仪','motion','deviceMotion',{}],
+  ['蓝牙','bluetooth','scan',{}],
+  ['FaceID','biometric','authenticate',{reason:'test'}],
+  ['步数','health','stepCount',{}]
+];
+
+var R = [];
+var I = 0;
+
+function runAll() {
+  R = []; I = 0;
+  log.textContent = '批量自测中…';
+  step();
+}
+
+function step() {
+  if (I >= TESTS.length) { report(); return; }
+  var x = TESTS[I];
+  var name = x[0], m = x[1], method = x[2], p = x[3];
+  var settled = false;
+  var timer = setTimeout(function() {
+    if (settled) return;
+    settled = true;
+    R.push({ name: name, ok: false, info: 'TIMEOUT' });
+    I += 1; step();
+  }, 4000);
+
+  invoke(m, method, p).then(function(data) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    var s = JSON.stringify(data);
+    if (s.length > 50) s = s.slice(0, 50) + '...';
+    R.push({ name: name, ok: true, info: s });
+    I += 1; step();
+  }).catch(function(err) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    R.push({ name: name, ok: false, info: err && err.code ? err.code : 'ERR' });
+    I += 1; step();
+  });
+}
+
+function report() {
+  var okCount = R.filter(function(r) { return r.ok; }).length;
+  var out = ['批量结果 ' + okCount + '/' + R.length + ' 成功', ''];
+  R.forEach(function(r) {
+    out.push((r.ok ? '✓ ' : '✗ ') + r.name + '  ' + r.info);
+  });
+  log.textContent = out.join('\n');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>设备信息</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;padding:24px;
+  font-family:-apple-system,"SF Pro Text",sans-serif;
+  background:#f2f2f7;color:#1c1c1e;
+  min-height:100vh;
+}
+@media (prefers-color-scheme:dark){
+  body{background:#000;color:#f2f2f7}
+  .card{background:#1c1c1e!important}
+  .row{border-color:#2c2c2e!important}
+  .label{color:#8e8e93!important}
+}
+h1{
+  font-size:28px;font-weight:700;margin:0 0 4px;
+  letter-spacing:-0.5px;
+}
+.sub{font-size:14px;color:#8e8e93;margin:0 0 24px}
+.card{
+  background:#fff;border-radius:16px;padding:4px 18px;margin-bottom:16px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.card-title{
+  font-size:12px;font-weight:600;color:#8e8e93;
+  text-transform:uppercase;letter-spacing:.5px;
+  padding:14px 0 6px;
+}
+.row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 0;border-bottom:1px solid #f2f2f7;
+}
+.row:last-child{border-bottom:none}
+.label{font-size:15px;color:#3c3c43}
+.value{font-size:15px;font-weight:500;text-align:right;max-width:55%;word-break:break-all}
+button{
+  width:100%;padding:16px;font-size:17px;font-weight:600;
+  border:none;border-radius:14px;background:#007aff;color:#fff;
+  margin-top:8px;cursor:pointer;
+}
+button:active{opacity:.7}
+#status{
+  text-align:center;font-size:13px;color:#8e8e93;
+  padding:12px 0;min-height:20px;
+}
+.badge{
+  display:inline-block;padding:2px 8px;border-radius:6px;
+  font-size:12px;font-weight:600;
+}
+.badge-ok{background:#34c75922;color:#248a3d}
+.badge-warn{background:#ff950022;color:#c93400}
+.skeleton{
+  display:inline-block;width:80px;height:14px;border-radius:4px;
+  background:linear-gradient(90deg,#e5e5ea 25%,#f2f2f7 50%,#e5e5ea 75%);
+  background-size:200% 100%;animation:shimmer 1.2s infinite;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+</head>
+<body>
+
+<h1>设备信息</h1>
+<p class="sub">读取本机硬件与系统状态</p>
+
+<div class="card">
+  <div class="card-title">设备</div>
+  <div class="row"><span class="label">型号</span><span class="value" id="model"><span class="skeleton"></span></span></div>
+  <div class="row"><span class="label">名称</span><span class="value" id="name"><span class="skeleton"></span></span></div>
+  <div class="row"><span class="label">标识符</span><span class="value" id="vendor"><span class="skeleton"></span></span></div>
+</div>
+
+<div class="card">
+  <div class="card-title">系统</div>
+  <div class="row"><span class="label">系统</span><span class="value" id="os"><span class="skeleton"></span></span></div>
+  <div class="row"><span class="label">版本</span><span class="value" id="version"><span class="skeleton"></span></span></div>
+</div>
+
+<div class="card">
+  <div class="card-title">屏幕</div>
+  <div class="row"><span class="label">分辨率</span><span class="value" id="screen"><span class="skeleton"></span></span></div>
+  <div class="row"><span class="label">缩放</span><span class="value" id="scale"><span class="skeleton"></span></span></div>
+</div>
+
+<div class="card">
+  <div class="card-title">电池</div>
+  <div class="row"><span class="label">电量</span><span class="value" id="battery"><span class="skeleton"></span></span></div>
+  <div class="row"><span class="label">状态</span><span class="value" id="batteryState"><span class="skeleton"></span></span></div>
+</div>
+
+<div class="card">
+  <div class="card-title">网络</div>
+  <div class="row"><span class="label">类型</span><span class="value" id="network"><span class="skeleton"></span></span></div>
+  <div class="row"><span class="label">计费网络</span><span class="value" id="expensive"><span class="skeleton"></span></span></div>
+</div>
+
+<button onclick="loadAll()">刷新</button>
+<div id="status"></div>
+
+<script>
+var $ = function(id){ return document.getElementById(id); };
+
+function set(id, text) {
+  $(id).textContent = text;
+}
+
+function fmtBatteryState(s) {
+  var map = { charging:'充电中', full:'已充满', unplugged:'使用电池', unknown:'未知' };
+  return map[s] || s;
+}
+
+function fmtNetwork(s) {
+  var map = { wifi:'Wi-Fi', cellular:'蜂窝网络', ethernet:'有线', offline:'离线', other:'其他', unknown:'未知' };
+  return map[s] || s;
+}
+
+function loadAll() {
+  $('status').textContent = '正在读取…';
+
+  wx.getSystemInfo({}).then(function(d) {
+    set('model', d.model || '—');
+    set('name', d.name || '—');
+    var vid = d.vendorId || d.identifierForVendor || '';
+    set('vendor', vid ? vid.slice(0, 18) + '…' : '—');
+    set('os', d.systemName || '—');
+    set('version', d.systemVersion || '—');
+    var w = d.screenWidth, h = d.screenHeight;
+    set('screen', (w && h) ? (w + ' × ' + h) : '—');
+    set('scale', d.scale ? ('@' + d.scale + 'x') : '—');
+  }).catch(function(e) {
+    $('status').textContent = '设备信息读取失败：' + (e && e.code ? e.code : e);
+  });
+
+  wx.getBattery({}).then(function(d) {
+    var lvl = Math.round((d.level || 0) * 100);
+    set('battery', lvl + '%');
+    set('batteryState', fmtBatteryState(d.state));
+  }).catch(function() {
+    set('battery', '—');
+    set('batteryState', '—');
+  });
+
+  wx.getNetwork({}).then(function(d) {
+    set('network', fmtNetwork(d.status));
+    set('expensive', d.expensive ? '是' : '否');
+  }).catch(function() {
+    set('network', '—');
+    set('expensive', '—');
+  });
+
+  setTimeout(function() {
+    $('status').textContent = '读取完成';
+  }, 800);
+}
+
+loadAll();
+</script>
+</body>
+</html>

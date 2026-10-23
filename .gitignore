@@ -1,0 +1,23 @@
+# 构建产物
+build/
+build_mac/
+DerivedData/
+*.ipa
+*.xcarchive
+
+# Xcode 用户数据
+xcuserdata/
+*.xcuserstate
+
+# 系统
+.DS_Store
+
+# 签名与凭据
+*.mobileprovision
+*.p12
+*.cer
+*.pem
+.env*
+
+# 运行时数据
+data/

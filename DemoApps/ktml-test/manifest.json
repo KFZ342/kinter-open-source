@@ -1,0 +1,8 @@
+{
+  "appId": "com.kinter.demo.ktmltest",
+  "version": "1.0.0",
+  "name": "KTML 语法测试",
+  "minHostVersion": "1.0.0",
+  "pages": ["index"],
+  "capabilities": {}
+}

@@ -1,0 +1,12 @@
+{
+  "appId": "com.demo.deviceinfo",
+  "version": "1.0.0",
+  "name": "设备信息",
+  "minHostVersion": "1.0.0",
+  "pages": ["index"],
+  "capabilities": {
+    "deviceInfo": { "level": "L0" },
+    "battery":    { "level": "L0" },
+    "network":    { "level": "L0" }
+  }
+}

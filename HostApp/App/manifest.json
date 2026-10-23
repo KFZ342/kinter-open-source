@@ -1,0 +1,147 @@
+{
+  "appId": "com.geek.demo",
+  "version": "1.1.0",
+  "name": "Demo",
+  "minHostVersion": "1.0.0",
+  "pages": [
+    "index"
+  ],
+  "capabilities": {
+    "camera": {
+      "level": "L1"
+    },
+    "photo": {
+      "level": "L1"
+    },
+    "location": {
+      "level": "L1",
+      "scope": "foreground"
+    },
+    "microphone": {
+      "level": "L1"
+    },
+    "storage": {
+      "level": "L0"
+    },
+    "clipboard": {
+      "level": "L0"
+    },
+    "deviceInfo": {
+      "level": "L0"
+    },
+    "battery": {
+      "level": "L0"
+    },
+    "network": {
+      "level": "L0"
+    },
+    "vibrate": {
+      "level": "L0"
+    },
+    "openURL": {
+      "level": "L0"
+    },
+    "share": {
+      "level": "L0"
+    },
+    "contacts": {
+      "level": "L1"
+    },
+    "calendar": {
+      "level": "L1"
+    },
+    "reminder": {
+      "level": "L1"
+    },
+    "notification": {
+      "level": "L1"
+    },
+    "speech": {
+      "level": "L1"
+    },
+    "health": {
+      "level": "L2"
+    },
+    "bluetooth": {
+      "level": "L1"
+    },
+    "motion": {
+      "level": "L1"
+    },
+    "biometric": {
+      "level": "L1"
+    },
+    "files": {
+      "level": "L0"
+    },
+    "http": {
+      "level": "L0"
+    },
+    "savePhoto": {
+      "level": "L1"
+    },
+    "tts": {
+      "level": "L0"
+    },
+    "qrScan": {
+      "level": "L1"
+    },
+    "qrGenerate": {
+      "level": "L0"
+    },
+    "ocr": {
+      "level": "L0"
+    },
+    "audio": {
+      "level": "L0"
+    },
+    "locationWatch": {
+      "level": "L1"
+    },
+    "bluetoothScan": {
+      "level": "L1"
+    },
+    "communication": {
+      "level": "L0"
+    },
+    "brightness": {
+      "level": "L0"
+    },
+    "screenAwake": {
+      "level": "L0"
+    },
+    "websocket": {
+      "level": "L0"
+    },
+    "image": {
+      "level": "L0"
+    },
+    "videoRecord": {
+      "level": "L1"
+    },
+    "upload": {
+      "level": "L0"
+    },
+    "networkWatch": {
+      "level": "L0"
+    },
+    "clipboardImage": {
+      "level": "L0"
+    },
+    "pdf": {
+      "level": "L0"
+    },
+    "print": {
+      "level": "L0"
+    },
+    "account": {
+      "level": "L0"
+    },
+    "spotlight": {
+      "level": "L0"
+    },
+    "liveActivity": {
+      "level": "L2"
+    }
+  }
+}
