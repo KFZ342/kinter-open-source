@@ -4,7 +4,7 @@
 
 ![Platform](https://img.shields.io/badge/Platform-iOS%2016%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5-orange)
-![License](https://img.shields.io/badge/License-Custom-green)
+![License](https://img.shields.io/badge/License-AGPL--3.0-green)
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
 小程序以 ZIP 安装：一个 `manifest.json` 声明能力，页面用 HTML 或 KTML 编写，JS 通过 `wx.*`（Promise API）调用 45 项原生能力——相机、定位、健康、蓝牙、WebSocket、OCR、Live Activity……每项能力都要在 manifest 中声明、经过网关校验才会放行。
@@ -177,4 +177,6 @@ GET  /store/:username/apps/:appId/:version.zip          → 应用包下载
 
 ## License
 
-自定义开源协议（[LICENSE](LICENSE)）：以 MIT 为基础，额外要求——**若将本软件或其修改/衍生/集成版本用于商业用途，必须同时公开相应源代码**（免费、可公开访问）。其余条款与 MIT 一致。
+[GNU AGPL-3.0](LICENSE)（OSI 认证的开源协议）。
+
+一句话理解：**允许商用、修改与分发，但任何人将本项目或其衍生作品用于商业产品/服务时，都必须以相同协议公开对应源代码**（含网络服务场景，见第 13 条）。这是标准 copyleft 条款，公司法务可直接评估，无自定义附加条件。
