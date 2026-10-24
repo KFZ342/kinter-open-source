@@ -145,9 +145,16 @@ final class WindowManagerViewController: UIViewController {
     // MARK: - 公开接口
 
     /// 添加一个应用到工作区。已开则置顶。
+    /// 同时运行窗口上限（每个窗口一个 WKWebView，限制数量控制内存）
+    private let maxWindows = 8
+
     func addApp(_ app: InstalledApp) {
         if let existing = windows.first(where: { $0.appId == app.appId }) {
             bringToFront(existing)
+            return
+        }
+        guard windows.count < maxWindows else {
+            HostPopup.toast("最多同时运行 \(maxWindows) 个窗口，请先关闭部分窗口")
             return
         }
 
@@ -217,12 +224,6 @@ final class WindowManagerViewController: UIViewController {
     }
 
     private func closeWindow(_ win: AppWindow) {
-        // 通知子 runner 清理
-        if let idx = children.firstIndex(where: {
-            ($0 as? MiniAppRunnerController) != nil
-        }) {
-            _ = idx
-        }
         // 清理所有子 VC 中匹配这个 appId 的
         for child in children {
             if let r = child as? MiniAppRunnerController, r.view === win.contentView {

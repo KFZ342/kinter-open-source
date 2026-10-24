@@ -17,7 +17,6 @@ final class AIGenerateViewController: UIViewController {
     private let discardBtn = UIButton(type: .system)
     private let sourceLabel = UILabel()
 
-    private let client = AIClient()
     private var generated: AIGenerator.GeneratedApp?
     private var generatedDir: URL?
 
@@ -232,14 +231,6 @@ final class AIGenerateViewController: UIViewController {
         thinkingLabel.translatesAutoresizingMaskIntoConstraints = false
         previewCard.addSubview(thinkingLabel)
 
-        thinkingLabel.font = .systemFont(ofSize: 11)
-        thinkingLabel.textColor = .tertiaryLabel
-        thinkingLabel.numberOfLines = 2
-        thinkingLabel.lineBreakMode = .byTruncatingTail
-        thinkingLabel.isHidden = true
-        thinkingLabel.translatesAutoresizingMaskIntoConstraints = false
-        previewCard.addSubview(thinkingLabel)
-
         previewText.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         previewText.backgroundColor = .tertiarySystemGroupedBackground
         previewText.layer.cornerRadius = 8
@@ -290,8 +281,10 @@ final class AIGenerateViewController: UIViewController {
 
     /// 读取已安装应用的所有文本文件，用于迭代上下文。
     /// 只读文本文件（html/css/js/svg/json/txt），跳过图片和二进制。
+    /// 单文件上限 200KB，总上下文上限 1MB，防止 prompt 超限。
     private func loadCurrentFiles(_ app: InstalledApp) -> [String: String] {
         var result: [String: String] = [:]
+        var totalSize = 0
         let dir = app.directory
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: dir,
@@ -310,6 +303,8 @@ final class AIGenerateViewController: UIViewController {
             // 限制单文件大小 200KB
             let attrs = try? fm.attributesOfItem(atPath: url.path)
             if let size = attrs?[.size] as? Int, size > 200_000 { continue }
+            totalSize += attrs?[.size] as? Int ?? 0
+            if totalSize > 1_000_000 { break }
             guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
             // 相对路径
             let rel = url.path.replacingOccurrences(of: dir.path, with: "")
@@ -391,8 +386,11 @@ final class AIGenerateViewController: UIViewController {
         }, onDelta: { [weak self] chunk in
             guard let self = self else { return }
             self.accumulated += chunk
+            // 节流刷新预览文本（每 50ms 最多一次）
+            let now = Date()
+            guard now.timeIntervalSince(self.lastPreviewRefresh) >= 0.05 else { return }
+            self.lastPreviewRefresh = now
             self.previewText.text = self.accumulated
-            self.updateProgress()
             // 自动滚动到底
             if self.previewText.contentSize.height > self.previewText.bounds.height {
                 let bottom = max(0, self.previewText.contentSize.height - self.previewText.bounds.height)
@@ -421,6 +419,8 @@ final class AIGenerateViewController: UIViewController {
     private var currentClient: AIClient?
     private var accumulated = ""
     private var reasoning = ""
+    /// 预览刷新节流：距上次刷新不足 50ms 时跳过，避免流式高频刷新卡 UI
+    private var lastPreviewRefresh = Date.distantPast
 
     private func startTimer() {
         stopTimer()
@@ -438,17 +438,12 @@ final class AIGenerateViewController: UIViewController {
         guard let start = startTime else { return }
         let elapsed = Date().timeIntervalSince(start)
         let chars = accumulated.count
-        statusLabel.isHidden = false
         let rchars = reasoning.count
-        if rchars > 0 {
-            statusLabel.text = String(format: "生成中… %.1fs · 思考 %d 字 · 输出 %d 字", elapsed, rchars, chars)
-        } else {
-            let rchars = reasoning.count
+        statusLabel.isHidden = false
         if rchars > 0 {
             statusLabel.text = String(format: "生成中… %.1fs · 思考 %d 字 · 输出 %d 字", elapsed, rchars, chars)
         } else {
             statusLabel.text = String(format: "生成中… %.1fs · %d 字", elapsed, chars)
-        }
         }
     }
 

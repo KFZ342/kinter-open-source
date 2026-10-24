@@ -41,6 +41,10 @@ final class MiniAppWebView: UIView {
 
     deinit {
         obs?.invalidate()
+        // 停止加载并移除导航代理，及时释放 WebKit 进程资源
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+        webView?.uiDelegate = nil
     }
 
     private func setup() {

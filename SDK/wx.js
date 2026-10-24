@@ -16,23 +16,27 @@
 
   var BRIDGE_TIMEOUT_MS = 30000;
 
-  function invoke(module, method, params) {
+  function invoke(module, method, params, noTimeout) {
     return new Promise(function (resolve, reject) {
       var h = bridge();
       if (!h) { reject({ code: 'bridge_unavailable', message: 'Native bridge not found' }); return; }
       seq += 1;
       var id = 'cb_' + seq;
-      var timer = setTimeout(function () {
-        if (pending[id]) {
-          delete pending[id];
-          reject({ code: 'timeout', message: '原生调用超时: ' + module + '.' + method });
-        }
-      }, BRIDGE_TIMEOUT_MS);
+      var timer = null;
+      // 等待用户操作的模态类调用不设超时（showModal / showActionSheet 用户不点击就永远等待）
+      if (!noTimeout) {
+        timer = setTimeout(function () {
+          if (pending[id]) {
+            delete pending[id];
+            reject({ code: 'timeout', message: '原生调用超时: ' + module + '.' + method });
+          }
+        }, BRIDGE_TIMEOUT_MS);
+      }
       pending[id] = { resolve: resolve, reject: reject, timer: timer };
       try {
         h.postMessage({ module: module, method: method, params: params || {}, callbackId: id });
       } catch (e) {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         delete pending[id];
         reject({ code: 'post_message_failed', message: String(e) });
       }
@@ -83,9 +87,10 @@
     off: off,
 
     // ===== 弹窗 =====
+    // showModal / showActionSheet 等待用户点击，不设超时
     toast: function (o) { return invoke('popup', 'toast', o); },
-    showModal: function (o) { return invoke('popup', 'modal', o); },
-    showActionSheet: function (o) { return invoke('popup', 'actionSheet', o); },
+    showModal: function (o) { return invoke('popup', 'modal', o, true); },
+    showActionSheet: function (o) { return invoke('popup', 'actionSheet', o, true); },
     dismissAllPopups: function (o) { return invoke('popup', 'dismissAll', o); },
 
     // ===== 存储 =====
