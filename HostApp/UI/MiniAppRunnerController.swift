@@ -35,8 +35,19 @@ final class MiniAppRunnerController: UIViewController {
             web.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
+        // 接收 JS 原始日志
+        web.onJavascriptLog = { [weak self] level, message in
+            DispatchQueue.main.async {
+                self?.appendLog(level: level, message: message)
+            }
+        }
+
         loadApp()
         setupKeyboardAvoidance()
+
+        // 原始日志面板（最后添加以保证盖在 WebView 上层；启动即显示）
+        setupLogPanel()
+        logPanel.isHidden = false
     }
 
     // MARK: - 键盘避让
@@ -87,6 +98,13 @@ final class MiniAppRunnerController: UIViewController {
     private let closeButton = UIButton(type: .system)
     private let reloadButton = UIButton(type: .system)
     private let iterateButton = UIButton(type: .system)
+    private let logButton = UIButton(type: .system)
+
+    // 原始日志面板
+    private let logPanel = UIView()
+    private let logTextView = UITextView()
+    private let logCountLabel = UILabel()
+    private var logLines: [String] = []
 
     private func setupNavBar() {
         navBar.backgroundColor = .secondarySystemBackground
@@ -115,7 +133,13 @@ final class MiniAppRunnerController: UIViewController {
         iterateButton.isHidden = !app.isAIGenerated
         navBar.addSubview(iterateButton)
 
-        // 迭代按钮（仅 AI 应用显示）
+        // 日志开关按钮（terminal 图标）
+        logButton.setImage(UIImage(systemName: "terminal"), for: .normal)
+        logButton.tintColor = .systemGreen
+        logButton.addTarget(self, action: #selector(toggleLogPanel), for: .touchUpInside)
+        logButton.translatesAutoresizingMaskIntoConstraints = false
+        navBar.addSubview(logButton)
+
         // 左上角刷新
         reloadButton.setImage(UIImage(systemName: "arrow.clockwise"), for: .normal)
         reloadButton.tintColor = .systemBlue
@@ -134,6 +158,11 @@ final class MiniAppRunnerController: UIViewController {
             reloadButton.widthAnchor.constraint(equalToConstant: 36),
             reloadButton.heightAnchor.constraint(equalToConstant: 36),
 
+            logButton.leadingAnchor.constraint(equalTo: reloadButton.trailingAnchor, constant: 4),
+            logButton.centerYAnchor.constraint(equalTo: navBar.centerYAnchor),
+            logButton.widthAnchor.constraint(equalToConstant: 36),
+            logButton.heightAnchor.constraint(equalToConstant: 36),
+
             iterateButton.trailingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
             iterateButton.centerYAnchor.constraint(equalTo: navBar.centerYAnchor),
             iterateButton.widthAnchor.constraint(equalToConstant: 36),
@@ -147,9 +176,134 @@ final class MiniAppRunnerController: UIViewController {
 
             titleLabel.centerXAnchor.constraint(equalTo: navBar.centerXAnchor),
             titleLabel.centerYAnchor.constraint(equalTo: navBar.centerYAnchor),
-            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: reloadButton.trailingAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: logButton.trailingAnchor, constant: 8),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: iterateButton.leadingAnchor, constant: -8)
         ])
+    }
+
+    // MARK: - 原始日志面板
+
+    private func setupLogPanel() {
+        logPanel.backgroundColor = UIColor(white: 0.09, alpha: 0.95)
+        logPanel.translatesAutoresizingMaskIntoConstraints = false
+        logPanel.isHidden = true
+        view.addSubview(logPanel)
+
+        // 顶部工具条
+        let bar = UIView()
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        logPanel.addSubview(bar)
+
+        let title = UILabel()
+        title.text = "原始日志"
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        title.textColor = .systemGreen
+        title.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(title)
+
+        logCountLabel.text = "0 条"
+        logCountLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        logCountLabel.textColor = .systemGray
+        logCountLabel.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(logCountLabel)
+
+        let clearBtn = UIButton(type: .system)
+        clearBtn.setTitle("清空", for: .normal)
+        clearBtn.titleLabel?.font = .systemFont(ofSize: 13, weight: .medium)
+        clearBtn.setTitleColor(.systemOrange, for: .normal)
+        clearBtn.addTarget(self, action: #selector(clearLog), for: .touchUpInside)
+        clearBtn.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(clearBtn)
+
+        let closeBtn = UIButton(type: .system)
+        closeBtn.setImage(UIImage(systemName: "chevron.down"), for: .normal)
+        closeBtn.tintColor = .systemGray
+        closeBtn.addTarget(self, action: #selector(hideLogPanel), for: .touchUpInside)
+        closeBtn.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(closeBtn)
+
+        // 日志正文（深色终端风格）
+        logTextView.backgroundColor = .clear
+        logTextView.textColor = .white
+        logTextView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        logTextView.isEditable = false
+        logTextView.isSelectable = true
+        logTextView.textContainerInset = UIEdgeInsets(top: 8, left: 10, bottom: 12, right: 10)
+        logTextView.translatesAutoresizingMaskIntoConstraints = false
+        logPanel.addSubview(logTextView)
+
+        NSLayoutConstraint.activate([
+            logPanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            logPanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            logPanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            logPanel.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.4),
+
+            bar.leadingAnchor.constraint(equalTo: logPanel.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: logPanel.trailingAnchor),
+            bar.topAnchor.constraint(equalTo: logPanel.topAnchor),
+            bar.heightAnchor.constraint(equalToConstant: 34),
+
+            title.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 14),
+            title.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+
+            logCountLabel.leadingAnchor.constraint(equalTo: title.trailingAnchor, constant: 10),
+            logCountLabel.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+
+            clearBtn.trailingAnchor.constraint(equalTo: closeBtn.leadingAnchor, constant: -10),
+            clearBtn.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+
+            closeBtn.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -10),
+            closeBtn.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            closeBtn.widthAnchor.constraint(equalToConstant: 28),
+            closeBtn.heightAnchor.constraint(equalToConstant: 28),
+
+            logTextView.topAnchor.constraint(equalTo: bar.bottomAnchor),
+            logTextView.leadingAnchor.constraint(equalTo: logPanel.leadingAnchor),
+            logTextView.trailingAnchor.constraint(equalTo: logPanel.trailingAnchor),
+            logTextView.bottomAnchor.constraint(equalTo: logPanel.bottomAnchor)
+        ])
+    }
+
+    private func appendLog(level: String, message: String) {
+        let t = DateFormatter.logTime.string(from: Date())
+        let tag: String
+        switch level {
+        case "error":   tag = "ERROR"
+        case "warn":    tag = "WARN"
+        case "info":    tag = "INFO"
+        case "debug":   tag = "DEBUG"
+        default:        tag = "LOG"
+        }
+        logLines.append("\(t) [\(tag)] \(message)")
+        if logLines.count > 1000 { logLines.removeFirst(logLines.count - 1000) }
+        logCountLabel.text = "\(logLines.count) 条"
+        guard !logPanel.isHidden else { return }
+        let atBottom = logTextView.contentOffset.y >= logTextView.contentSize.height - logTextView.bounds.height - 20
+        logTextView.text = logLines.joined(separator: "\n")
+        if atBottom || logLines.count <= 5 {
+            let bottom = max(0, logTextView.contentSize.height - logTextView.bounds.height)
+            logTextView.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
+        }
+    }
+
+    @objc private func toggleLogPanel() {
+        logPanel.isHidden.toggle()
+        if !logPanel.isHidden {
+            logButton.tintColor = .systemGreen
+            appendLog(level: "info", message: "— 日志面板已打开 —")
+        } else {
+            logButton.tintColor = .systemGreen
+        }
+    }
+
+    @objc private func hideLogPanel() {
+        logPanel.isHidden = true
+    }
+
+    @objc private func clearLog() {
+        logLines.removeAll()
+        logTextView.text = ""
+        logCountLabel.text = "0 条"
     }
 
     // MARK: - 加载
@@ -278,4 +432,13 @@ final class MiniAppRunnerController: UIViewController {
             }
         }
     }
+}
+
+/// 日志时间戳格式
+private extension DateFormatter {
+    static let logTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 }

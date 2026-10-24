@@ -20,7 +20,25 @@ final class MiniAppWebView: UIView {
     /// 拿到 bridge 引用，供 Runner 注入回调
     var bridgeForInterop: BridgeMessageHandler? { bridge }
 
-    /// 拿到 bridge 引用，供 Runner 注入回调
+    /// JS 日志回调（level: log / info / warn / error / debug）
+    var onJavascriptLog: ((String, String) -> Void)?
+
+    /// 接收 JS console 日志的轻量 handler
+    private final class JSLogHandler: NSObject, WKScriptMessageHandler {
+        weak var owner: MiniAppWebView?
+        init(owner: MiniAppWebView) {
+            self.owner = owner
+            super.init()
+        }
+        func userContentController(_ ucc: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            guard message.name == "jslog",
+                  let body = message.body as? [String: Any],
+                  let level = body["level"] as? String,
+                  let text = body["message"] as? String else { return }
+            owner?.onJavascriptLog?(level, text)
+        }
+    }
 
     /// 向 JS 主动推送事件（供 Provider 使用）
     func bridgeEmit(event: String, data: Any) {
@@ -59,6 +77,7 @@ final class MiniAppWebView: UIView {
         let wv = WKWebView(frame: .zero, configuration: config)
         let handler = BridgeMessageHandler(webView: wv, gateway: gateway)
         controller.add(handler, name: BridgeMessageHandler.handlerName)
+        controller.add(JSLogHandler(owner: self), name: "jslog")
 
         wv.translatesAutoresizingMaskIntoConstraints = false
         addSubview(wv)
@@ -107,6 +126,50 @@ final class MiniAppWebView: UIView {
             return
         }
         controller.addUserScript(WKUserScript(source: js,
+                                              injectionTime: .atDocumentStart,
+                                              forMainFrameOnly: true))
+
+        // 最后注入日志钩子：重写 console + 捕获未处理异常，上报到原生 jslog
+        let logHook = """
+        (function () {
+          if (window.__kinterLogInstalled) return;
+          window.__kinterLogInstalled = true;
+          function fmt(args) {
+            return Array.prototype.map.call(args, function (a) {
+              try {
+                if (typeof a === 'string') return a;
+                if (a === undefined) return 'undefined';
+                if (a === null) return 'null';
+                if (typeof a === 'object') return JSON.stringify(a);
+                return String(a);
+              } catch (e) { return '[unserializable]'; }
+            }).join(' ');
+          }
+          function send(level, message) {
+            try {
+              webkit.messageHandlers.jslog.postMessage({ level: level, message: message });
+            } catch (e) {}
+          }
+          ['log', 'info', 'warn', 'error', 'debug'].forEach(function (lv) {
+            var orig = (typeof console[lv] === 'function') ? console[lv].bind(console) : function () {};
+            console[lv] = function () {
+              var m = fmt(arguments);
+              if (m.length > 4000) m = m.slice(0, 4000) + '…';
+              send(lv, m);
+              orig.apply(console, arguments);
+            };
+          });
+          window.onerror = function (msg, src, line, col) {
+            send('error', msg + ' @ ' + (src || '') + ':' + line + ':' + col);
+          };
+          window.addEventListener('unhandledrejection', function (e) {
+            var r = e.reason;
+            var m = (r && r.message) ? r.message : String(r);
+            send('error', 'Unhandled rejection: ' + m);
+          });
+        })();
+        """
+        controller.addUserScript(WKUserScript(source: logHook,
                                               injectionTime: .atDocumentStart,
                                               forMainFrameOnly: true))
     }
