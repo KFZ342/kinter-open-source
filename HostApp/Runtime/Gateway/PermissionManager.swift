@@ -10,6 +10,12 @@ import Speech
 import LocalAuthentication
 import HealthKit
 import Photos
+import AppTrackingTransparency
+import MediaPlayer
+import HomeKit
+import CoreNFC
+import Network
+import NearbyInteraction
 
 /// iOS 原生权限深度集成。
 /// 统一查询与申请系统权限，返回细分状态：
@@ -20,7 +26,8 @@ enum PermissionManager {
     static let supportedIDs: Set<String> = [
         "camera", "microphone", "location", "photo", "savePhoto",
         "contacts", "calendar", "reminder", "notification",
-        "bluetooth", "motion", "speech", "biometric", "health"
+        "bluetooth", "motion", "speech", "biometric", "health",
+        "att", "localNetwork", "nfc", "mediaLibrary", "homeKit", "nearby"
     ]
 
     // MARK: - 状态查询
@@ -142,6 +149,67 @@ enum PermissionManager {
                 complete("unsupported", completion)
             }
 
+        // iOS 14+ App 追踪透明度（跨 App 追踪授权）
+        case "att":
+            if #available(iOS 14, *) {
+                switch ATTrackingManager.trackingAuthorizationStatus {
+                case .authorized:   complete("authorized", completion)
+                case .denied:       complete("denied", completion)
+                case .restricted:   complete("restricted", completion)
+                default:            complete("notDetermined", completion)
+                }
+            } else {
+                complete("unsupported", completion)
+            }
+
+        // 本地网络：iOS 无状态查询 API，未触发时恒为 notDetermined（首次访问才弹窗）
+        case "localNetwork":
+            if #available(iOS 14, *) {
+                complete("notDetermined", completion)
+            } else {
+                complete("unsupported", completion)
+            }
+
+        // NFC：无授权状态，只有设备支持性；授权发生在每次扫描会话时
+        case "nfc":
+            if NFCTagReaderSession.readingAvailable {
+                complete("notDetermined", completion)
+            } else {
+                complete("unsupported", completion)
+            }
+
+        // 媒体资料库 / Apple Music
+        case "mediaLibrary":
+            switch MPMediaLibrary.authorizationStatus() {
+            case .authorized: complete("authorized", completion)
+            case .denied:     complete("denied", completion)
+            case .restricted: complete("restricted", completion)
+            default:          complete("notDetermined", completion)
+            }
+
+        // HomeKit 智能家居（OptionSet 仅含 authorized/restricted，空集合 = 未决定或已拒绝）
+        case "homeKit":
+            let s = HMHomeManager().authorizationStatus
+            if s.contains(.authorized) {
+                complete("authorized", completion)
+            } else if s.contains(.restricted) {
+                complete("restricted", completion)
+            } else {
+                complete("notDetermined", completion)
+            }
+
+        // 近距离交互（U1 芯片）：无授权状态，只有设备支持性；首次会话时弹一次性允许
+        case "nearby":
+            if #available(iOS 14, *) {
+                if NISession.isSupported {
+                    complete("notDetermined", completion)
+                } else {
+                    complete("unsupported", completion)
+                }
+            } else {
+                complete("unsupported", completion)
+            }
+
         default:
             complete("unsupported", completion)
         }
@@ -232,6 +300,31 @@ enum PermissionManager {
         case "health":
             requestHealth(completion)
 
+        case "att":
+            guard #available(iOS 14, *) else {
+                complete("unsupported", completion)
+                return
+            }
+            ATTrackingManager.requestTrackingAuthorization { _ in
+                status(for: permission, completion: completion)
+            }
+
+        case "localNetwork":
+            requestLocalNetwork(completion)
+
+        case "nfc", "nearby":
+            // 无程序化授权入口：授权发生在对应系统会话（NFC 扫描 / 近距离测量）启动时，
+            // 此处仅回读设备支持状态，避免在非交互场景伪造弹窗。
+            status(for: permission, completion: completion)
+
+        case "mediaLibrary":
+            MPMediaLibrary.requestAuthorization { _ in
+                status(for: permission, completion: completion)
+            }
+
+        case "homeKit":
+            requestHomeKit(completion)
+
         default:
             status(for: permission, completion: completion)
         }
@@ -304,6 +397,56 @@ enum PermissionManager {
         store.requestAuthorization(toShare: [], read: [read]) { _, _ in
             DispatchQueue.main.async {
                 status(for: "health", completion: completion)
+            }
+        }
+    }
+
+    // MARK: - 本地网络 / HomeKit 申请辅助
+
+    private static var localNetworkProbe: LocalNetworkProbe?
+
+    /// 本地网络无状态 API，只能通过真实发起本地访问触发系统弹窗。
+    /// 用一次短暂的 Bonjour 探测触发弹窗（约 4 秒后结束探测）。
+    private static func requestLocalNetwork(_ completion: @escaping (String) -> Void) {
+        guard #available(iOS 14, *) else {
+            completion("unsupported")
+            return
+        }
+        let probe = LocalNetworkProbe { status in
+            localNetworkProbe = nil
+            completion(status)
+        }
+        localNetworkProbe = probe
+        probe.start()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            localNetworkProbe?.finish()
+            localNetworkProbe = nil
+            completion("notDetermined")
+        }
+    }
+
+    private static var homeKitRequester: HMHomeManager?
+    private static var homeKitDelegate: HomeKitRequestDelegate?
+
+    /// HomeKit 在首次访问 homes 时弹授权窗，监听 didUpdateAuthorizationStatus 后回读状态
+    private static func requestHomeKit(_ completion: @escaping (String) -> Void) {
+        let mgr = HMHomeManager()
+        homeKitRequester = mgr
+        homeKitDelegate = HomeKitRequestDelegate {
+            status(for: "homeKit") { s in
+                completion(s)
+                homeKitRequester = nil
+                homeKitDelegate = nil
+            }
+        }
+        mgr.delegate = homeKitDelegate
+        _ = mgr.homes // 触发首次授权弹窗
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak mgr] in
+            guard homeKitRequester === mgr else { return }
+            status(for: "homeKit") { s in
+                completion(s)
+                homeKitRequester = nil
+                homeKitDelegate = nil
             }
         }
     }
@@ -390,5 +533,52 @@ private final class BluetoothRequestDelegate: NSObject, CBCentralManagerDelegate
         PermissionManager.bluetoothHandler?(status)
         PermissionManager.bluetoothHandler = nil
         PermissionManager.bluetoothRequester = nil
+    }
+}
+
+/// 本地网络权限探测：发起一次 Bonjour 浏览触发 iOS 本地网络授权弹窗。
+/// 无状态查询 API，探测结束后统一回 notDetermined（被拒的连接会报 NoAuth）。
+private final class LocalNetworkProbe: NSObject, NetServiceBrowserDelegate {
+    private let onFinish: (String) -> Void
+    private var browser: NetServiceBrowser?
+    private var finished = false
+
+    init(_ onFinish: @escaping (String) -> Void) {
+        self.onFinish = onFinish
+        super.init()
+    }
+
+    func start() {
+        let b = NetServiceBrowser()
+        b.delegate = self
+        b.searchForServices(ofType: "_kinter-probe._tcp", inDomain: "local.")
+        browser = b
+    }
+
+    func finish() {
+        guard !finished else { return }
+        finished = true
+        browser?.stop()
+        browser = nil
+        onFinish("notDetermined")
+    }
+
+    func netServiceBrowser(_ browser: NetServiceBrowser, didNotSearch errorDict: [String: NSNumber]) {
+        finish()
+    }
+
+    func netServiceBrowserWillSearch(_ browser: NetServiceBrowser) {
+        // 已触发系统本地网络授权弹窗
+    }
+}
+
+private final class HomeKitRequestDelegate: NSObject, HMHomeManagerDelegate {
+    private let onChange: () -> Void
+    init(_ onChange: @escaping () -> Void) {
+        self.onChange = onChange
+        super.init()
+    }
+    func homeManagerDidUpdateAuthorizationStatus(_ manager: HMHomeManager) {
+        onChange()
     }
 }

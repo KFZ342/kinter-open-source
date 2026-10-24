@@ -123,7 +123,13 @@
       'scope.werun': 'motion',
       'scope.speech': 'speech',
       'scope.faceId': 'biometric',
-      'scope.health': 'health'
+      'scope.health': 'health',
+      'scope.tracking': 'att',
+      'scope.localNetwork': 'localNetwork',
+      'scope.nfc': 'nfc',
+      'scope.mediaLibrary': 'mediaLibrary',
+      'scope.homeKit': 'homeKit',
+      'scope.nearby': 'nearby'
     },
     // 内部权限 ID → scope.* 名
     _scopeReverseMap: {
@@ -140,7 +146,13 @@
       'motion': 'scope.werun',
       'speech': 'scope.speech',
       'biometric': 'scope.faceId',
-      'health': 'scope.health'
+      'health': 'scope.health',
+      'att': 'scope.tracking',
+      'localNetwork': 'scope.localNetwork',
+      'nfc': 'scope.nfc',
+      'mediaLibrary': 'scope.mediaLibrary',
+      'homeKit': 'scope.homeKit',
+      'nearby': 'scope.nearby'
     },
     _normPerm: function (p) {
       if (!p) return '';

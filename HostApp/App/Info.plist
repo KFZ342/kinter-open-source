@@ -55,6 +55,22 @@
 	<string>小程序需要写入健康数据</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>小程序需要获取您的位置</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>小程序需要跟踪您的活动以提供个性化内容与数据分析</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>小程序需要访问本地网络以发现与连接局域网设备（投屏、传输、打印等）</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_kinter-probe._tcp</string>
+	</array>
+	<key>NFCReaderUsageDescription</key>
+	<string>小程序需要读取 NFC 标签（交通卡、门禁、NFC 标签等）</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>小程序需要访问您的媒体资料库（Apple Music）</string>
+	<key>NSHomeKitUsageDescription</key>
+	<string>小程序需要控制您的 HomeKit 智能家居设备</string>
+	<key>NSNearbyInteractionAllowOnceUsageDescription</key>
+	<string>小程序需要测量与附近设备的距离（隔空投送、物品查找等）</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>weixin</string>

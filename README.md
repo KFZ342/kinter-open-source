@@ -266,7 +266,11 @@ wx.authorize({ permission: 'scope.camera' }).then(res => console.log(res.status)
 wx.openSetting()
 ```
 
-支持的 `scope.*` 权限：`scope.camera`（相机）、`scope.record`（麦克风）、`scope.userLocation`（定位）、`scope.album`（相册）、`scope.writePhotosAlbum`（保存相册）、`scope.addressBook`（通讯录）、`scope.calendar`（日历）、`scope.reminders`（提醒事项）、`scope.notification`（通知）、`scope.bluetooth`（蓝牙）、`scope.werun`（运动）、`scope.speech`（语音识别）、`scope.faceId`（Face ID）、`scope.health`（健康步数）。
+支持的 `scope.*` 权限（20 类）：`scope.camera`（相机）、`scope.record`（麦克风）、`scope.userLocation`（定位）、`scope.album`（相册）、`scope.writePhotosAlbum`（保存相册）、`scope.addressBook`（通讯录）、`scope.calendar`（日历）、`scope.reminders`（提醒事项）、`scope.notification`（通知）、`scope.bluetooth`（蓝牙）、`scope.werun`（运动）、`scope.speech`（语音识别）、`scope.faceId`（Face ID）、`scope.health`（健康步数）、`scope.tracking`（广告追踪 ATT）、`scope.localNetwork`（本地网络）、`scope.nfc`（NFC 读取）、`scope.mediaLibrary`（媒体资料库/Apple Music）、`scope.homeKit`（HomeKit 智能家居）、`scope.nearby`（近距离交互 U1）。
+
+权限状态语义说明：
+- `att` / `mediaLibrary` / `homeKit`：iOS 提供状态查询 API，返回真实细分状态（authorized/denied/notDetermined/restricted）。
+- `localNetwork` / `nfc` / `nearby`：iOS **无状态查询 API**，未触发时返回 `notDetermined`（设备不支持返回 `unsupported`）；授权发生在对应系统会话（本地网络探测 / NFC 扫描 / 近距离测量）启动时，`wx.authorize` 对 `localNetwork` 会发起一次 Bonjour 探测触发系统弹窗，对 `nfc`/`nearby` 仅回读设备支持性。
 
 对应原生实现位于 `HostApp/Runtime/Gateway/PermissionManager.swift`，统一封装 AVFoundation / CoreLocation / Contacts / EventKit / UserNotifications / CoreBluetooth / CoreMotion / Speech / LocalAuthentication / HealthKit / Photos 授权链路。
 
