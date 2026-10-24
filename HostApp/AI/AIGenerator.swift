@@ -88,6 +88,15 @@ final class AIGenerator {
             }
         }
 
+        // 能力 ID 白名单校验：剔除 AI 编造的、不在能力清单里的 ID，
+        // 防止安装后调用时报 capability_not_declared / 未知能力
+        let validCapIDs = Set(PermissionCatalog.all.map { $0.id })
+        let declaredCaps = (obj["capabilities"] as? [String: Any]) ?? [:]
+        var cleanCaps: [String: Any] = [:]
+        for (cid, spec) in declaredCaps where validCapIDs.contains(cid) {
+            cleanCaps[cid] = spec
+        }
+
         return GeneratedApp(
             name: name,
             appId: appId,
@@ -95,7 +104,7 @@ final class AIGenerator {
             category: (obj["category"] as? String) ?? "工具",
             description: (obj["description"] as? String) ?? "",
             pages: (obj["pages"] as? [String]) ?? ["index"],
-            capabilities: (obj["capabilities"] as? [String: Any]) ?? [:],
+            capabilities: cleanCaps,
             files: filesRaw
         )
     }

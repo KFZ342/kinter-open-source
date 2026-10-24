@@ -231,7 +231,18 @@ wx.off('websocket.message', h);  // 退订（不传 handler 则清空该事件�
 
 ### 分享 / 打开链接（L0）
 
-`wx.share({text})` 系统分享；`wx.openURL({url})` 打开链接
+`wx.share({text})` 系统分享
+
+### 打开外部 App / 链接（`openURL`，L0，URL Scheme）
+
+`wx.openURL({url})` 打开 http/https 链接或自定义 scheme 唤起原生 App（如 `weixin://`、`kinter://`）。
+
+- 支持任意安全 scheme；`file://`、`javascript://`、`data://`、`vbscript://`、`about:` 被硬禁止。
+- 打开前自动 `canOpenURL` 预检，App 未安装时 reject `{code:'provider_error'}`。
+- 小程序侧最佳实践：先 `wx.canOpenURL` 预检，未安装展示降级提示再调用。
+
+`wx.canOpenURL({url})` 预检 scheme 能否被系统打开（App 是否已安装），resolve `{ canOpen: Boolean }`。
+宿主需在 `Info.plist` 的 `LSApplicationQueriesSchemes` 声明要预检的 scheme（已内置微信/QQ/支付宝/微博/淘宝/抖音/小红书/快手/kinter/tel/mailto/sms）。
 
 ### PDF / 打印（L0）
 
@@ -252,6 +263,45 @@ wx.off('websocket.message', h);  // 退订（不传 handler 则清空该事件�
 ### 应用间调用（`app`，无权限）
 
 `wx.openApp({appId, params?})` 打开另一个小程序；`wx.canOpenApp({appId})` 是否已安装；`wx.getLaunchParams()` 启动参数
+
+### 权限管理（`permission`，无权限，iOS 原生 20 类）
+
+`wx.getPermissionStatus({permission})` 查询单个权限细分状态，resolve `{ permission, status }`。
+
+`wx.getSetting()` 查询全部权限（微信风格），resolve `{ authSetting: { 'scope.camera': true, ... } }`。
+
+`wx.authorize({permission})` 申请权限（弹系统授权框），resolve `{ permission, status }`。
+
+`wx.openSetting()` 打开本 App 系统设置页（权限被拒后引导用户开启），resolve `{ ok: true }`。
+
+权限状态：`authorized` 已授权 / `denied` 被拒 / `notDetermined` 未询问 / `restricted` 系统限制 / `limited` 部分授权（相册）/ `unsupported` 设备不支持。
+
+支持的 20 类 scope（微信风格 ↔ 内部 ID 自动映射）：
+
+| scope | 内部 ID | 说明 | 状态语义 |
+|---|---|---|---|
+| `scope.camera` | camera | 相机 | 真实状态 |
+| `scope.record` | microphone | 麦克风 | 真实状态 |
+| `scope.userLocation` | location | 定位 | 真实状态 |
+| `scope.album` | photo | 相册（读） | 真实状态（含 limited） |
+| `scope.writePhotosAlbum` | savePhoto | 保存相册 | 真实状态 |
+| `scope.addressBook` | contacts | 通讯录 | 真实状态 |
+| `scope.calendar` | calendar | 日历 | 真实状态 |
+| `scope.reminders` | reminder | 提醒事项 | 真实状态 |
+| `scope.notification` | notification | 通知 | 真实状态 |
+| `scope.bluetooth` | bluetooth | 蓝牙 | 真实状态 |
+| `scope.werun` | motion | 运动 | 真实状态 |
+| `scope.speech` | speech | 语音识别 | 真实状态 |
+| `scope.faceId` | biometric | Face ID | 真实状态 |
+| `scope.health` | health | 健康步数 | 真实状态 |
+| `scope.tracking` | att | 广告追踪 ATT | 真实状态（iOS 14+） |
+| `scope.mediaLibrary` | mediaLibrary | 媒体资料库/Apple Music | 真实状态 |
+| `scope.homeKit` | homeKit | 智能家居 | 真实状态（OptionSet） |
+| `scope.localNetwork` | localNetwork | 本地网络 | 触发式（Bonjour 探测弹窗，iOS 14+） |
+| `scope.nfc` | nfc | NFC 读取 | 设备支持性（每次扫描时授权） |
+| `scope.nearby` | nearby | 近距离交互 U1 | 设备支持性（首次会话一次性允许） |
+
+授权引导最佳实践：`getSetting` 查状态 → 未授权展示引导 UI → `authorize` 申请 → 被拒 `openSetting` 跳设置。实现位于 `HostApp/Runtime/Gateway/PermissionManager.swift`。
 
 ## 说明
 

@@ -14,16 +14,53 @@ OUT = ROOT / 'HostApp' / 'AI' / 'WXAPIList.swift'
 
 src = WXJS.read_text(encoding='utf-8')
 
-# 提取：apiName: function (o) { return invoke('module', 'method', ...)
-# 同时抓 globalData 子对象
+# 提取所有 API：按函数块扫描，抓函数体内第一个 return invoke(...)
+# 兼容两种形态：
+#   openURL: function (o) { return invoke('openURL', 'open', o); }            // 单行直返
+#   authorize: function (o) {                                                 // 多行（前置逻辑再 invoke）
+#     var p = wx._normPerm(o && o.permission);
+#     return invoke('permission', 'request', { permission: p });
+#   },
 apis = []
 
-# 顶层函数
-for m in re.finditer(r"^    (\w+):\s*function\s*\(o\)\s*\{\s*return\s+invoke\('(\w+)',\s*'(\w+)'", src, re.M):
-    api_name, module, method = m.group(1), m.group(2), m.group(3)
-    apis.append((api_name, module, method, ''))
+func_start = re.compile(r"^    (\w+):\s*function\s*\(o\)\s*\{")
+invoke_call = re.compile(r"return\s+invoke\('(\w+)',\s*'(\w+)'")
 
-# globalData 子对象
+
+def extract_top_level():
+    """逐行扫描顶层函数块（4 空格缩进为字段行，函数体为 6+ 空格缩进）。"""
+    lines = src.split('\n')
+    current_name = None
+    block = []
+
+    def flush():
+        nonlocal current_name, block
+        if current_name is not None and block:
+            m = invoke_call.search('\n'.join(block))
+            if m:
+                apis.append((current_name, m.group(1), m.group(2), ''))
+        current_name = None
+        block = []
+
+    for ln in lines:
+        m = func_start.match(ln)
+        if m:
+            flush()
+            current_name = m.group(1)
+            block = [ln]
+            continue
+        # 4 空格缩进的非函数定义行 = 下一个顶层字段，结束当前函数块
+        if current_name is not None and re.match(r"^    \S", ln):
+            flush()
+            continue
+        if current_name is not None:
+            block.append(ln)
+    flush()
+
+
+extract_top_level()
+
+# globalData 子对象（6 空格缩进）
 for m in re.finditer(r"      (\w+):\s*function\s*\(o\)\s*\{\s*return\s+invoke\('(\w+)',\s*'(\w+)'", src):
     api_name, module, method = m.group(1), m.group(2), m.group(3)
     apis.append(('globalData.' + api_name, module, method, 'globalData'))

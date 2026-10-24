@@ -141,7 +141,10 @@ final class AIClient: NSObject {
         var body: [String: Any] = [
             "model": AISettings.shared.model,
             "messages": messages.map { ["role": $0.role, "content": $0.content] },
-            "temperature": AISettings.shared.temperature
+            "temperature": AISettings.shared.temperature,
+            // 生成的小程序包含多个完整文件（index.html/icon.svg/多页），
+            // 输出可能很长；给足上限防止截断导致 JSON 解析失败
+            "max_tokens": 16384
         ]
         if stream { body["stream"] = true }
 
