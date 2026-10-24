@@ -247,6 +247,29 @@ SDK 设计特点：
 - 宿主和页面逻辑解耦
 - 运行时错误可被网关统一处理
 
+### iOS 原生权限深度集成
+
+小程序可通过 `wx.*` 权限 API 查询、申请 iOS 系统权限，并在被拒后引导用户到系统设置开启：
+
+```js
+// 查询所有权限状态（微信风格 authSetting）
+wx.getSetting().then(res => console.log(res.authSetting))
+
+// 查询单个权限细分状态
+wx.getPermissionStatus({ permission: 'scope.camera' })
+  .then(res => console.log(res.status)) // authorized / denied / notDetermined / restricted / limited / unsupported
+
+// 申请授权（弹系统授权框）
+wx.authorize({ permission: 'scope.camera' }).then(res => console.log(res.status))
+
+// 打开本 App 的系统设置页（权限被拒后引导用户）
+wx.openSetting()
+```
+
+支持的 `scope.*` 权限：`scope.camera`（相机）、`scope.record`（麦克风）、`scope.userLocation`（定位）、`scope.album`（相册）、`scope.writePhotosAlbum`（保存相册）、`scope.addressBook`（通讯录）、`scope.calendar`（日历）、`scope.reminders`（提醒事项）、`scope.notification`（通知）、`scope.bluetooth`（蓝牙）、`scope.werun`（运动）、`scope.speech`（语音识别）、`scope.faceId`（Face ID）、`scope.health`（健康步数）。
+
+对应原生实现位于 `HostApp/Runtime/Gateway/PermissionManager.swift`，统一封装 AVFoundation / CoreLocation / Contacts / EventKit / UserNotifications / CoreBluetooth / CoreMotion / Speech / LocalAuthentication / HealthKit / Photos 授权链路。
+
 ## 安全模型
 
 Kinter 并不是“开放式 JS 沙箱”那么简单，而是更偏向“有边界的能力执行平台”。

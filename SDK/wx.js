@@ -107,6 +107,82 @@
       all: function (o) { return invoke('store', 'all', o); }
     },
 
+    // ===== iOS 原生权限深度集成 =====
+    // scope.* 微信风格名 → 内部权限 ID
+    _permScopeMap: {
+      'scope.camera': 'camera',
+      'scope.record': 'microphone',
+      'scope.userLocation': 'location',
+      'scope.writePhotosAlbum': 'savePhoto',
+      'scope.album': 'photo',
+      'scope.addressBook': 'contacts',
+      'scope.calendar': 'calendar',
+      'scope.reminders': 'reminder',
+      'scope.notification': 'notification',
+      'scope.bluetooth': 'bluetooth',
+      'scope.werun': 'motion',
+      'scope.speech': 'speech',
+      'scope.faceId': 'biometric',
+      'scope.health': 'health'
+    },
+    // 内部权限 ID → scope.* 名
+    _scopeReverseMap: {
+      'camera': 'scope.camera',
+      'microphone': 'scope.record',
+      'location': 'scope.userLocation',
+      'savePhoto': 'scope.writePhotosAlbum',
+      'photo': 'scope.album',
+      'contacts': 'scope.addressBook',
+      'calendar': 'scope.calendar',
+      'reminder': 'scope.reminders',
+      'notification': 'scope.notification',
+      'bluetooth': 'scope.bluetooth',
+      'motion': 'scope.werun',
+      'speech': 'scope.speech',
+      'biometric': 'scope.faceId',
+      'health': 'scope.health'
+    },
+    _normPerm: function (p) {
+      if (!p) return '';
+      if (typeof p !== 'string') return '';
+      return wx._permScopeMap[p] || p;
+    },
+    /** 查询单个权限的细分状态（authorized/denied/notDetermined/restricted/limited/unsupported） */
+    getPermissionStatus: function (o) {
+      var p = wx._normPerm(o && o.permission);
+      return invoke('permission', 'getStatus', { permission: p }).then(function (res) {
+        return {
+          permission: wx._scopeReverseMap[res.permission] || res.permission,
+          status: res.status
+        };
+      });
+    },
+    /** 查询所有权限，返回微信风格 { authSetting: { 'scope.camera': true } } */
+    getSetting: function (o) {
+      return invoke('permission', 'getSetting', o || {}).then(function (res) {
+        var auth = {};
+        for (var id in res) {
+          var scope = wx._scopeReverseMap[id] || id;
+          auth[scope] = (res[id] === 'authorized' || res[id] === 'limited');
+        }
+        return { authSetting: auth };
+      });
+    },
+    /** 申请授权（denied 后再次调用会直接进系统设置引导） */
+    authorize: function (o) {
+      var p = wx._normPerm(o && o.permission);
+      return invoke('permission', 'request', { permission: p }).then(function (res) {
+        return {
+          permission: wx._scopeReverseMap[res.permission] || res.permission,
+          status: res.status
+        };
+      });
+    },
+    /** 打开本 App 的系统设置页 */
+    openSetting: function (o) {
+      return invoke('permission', 'openSettings', o || {});
+    },
+
     // ===== 页面路由 =====
     navigateTo: function (o) { return invoke('router', 'navigateTo', o); },
     redirectTo: function (o) { return invoke('router', 'redirectTo', o); },

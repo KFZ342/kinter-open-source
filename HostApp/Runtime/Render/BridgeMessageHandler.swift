@@ -1,3 +1,4 @@
+import UIKit
 import WebKit
 
 /// WKWebView 消息桥。JS postMessage -> 这里 -> Gateway -> 回传 JS。
@@ -54,6 +55,12 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
         // 宿主自绘弹窗
         if module == "popup" {
             handlePopup(method: method, params: params, callbackId: callbackId)
+            return
+        }
+
+        // iOS 原生权限深度集成
+        if module == "permission" {
+            handlePermission(method: method, params: params, callbackId: callbackId)
             return
         }
 
@@ -279,6 +286,52 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
         default:
             sendRouterResult(callbackId: callbackId, ok: false,
                              error: ["code": "method_not_found", "message": "popup.\(method)"])
+        }
+    }
+
+    // MARK: - iOS 原生权限深度集成
+
+    /// 权限模块：查询 / 申请 / 全部状态 / 打开系统设置
+    private func handlePermission(method: String, params: [String: Any], callbackId: String) {
+        switch method {
+        case "getStatus":
+            let permission = params["permission"] as? String ?? ""
+            guard PermissionManager.supportedIDs.contains(permission) else {
+                sendRouterResult(callbackId: callbackId, ok: true,
+                                 data: ["permission": permission, "status": "unsupported"])
+                return
+            }
+            PermissionManager.status(for: permission) { [weak self] status in
+                self?.sendRouterResult(callbackId: callbackId, ok: true,
+                                       data: ["permission": permission, "status": status])
+            }
+
+        case "getSetting":
+            PermissionManager.allStatuses { [weak self] statuses in
+                self?.sendRouterResult(callbackId: callbackId, ok: true, data: statuses)
+            }
+
+        case "request":
+            let permission = params["permission"] as? String ?? ""
+            guard PermissionManager.supportedIDs.contains(permission) else {
+                sendRouterResult(callbackId: callbackId, ok: true,
+                                 data: ["permission": permission, "status": "unsupported"])
+                return
+            }
+            PermissionManager.request(permission) { [weak self] status in
+                self?.sendRouterResult(callbackId: callbackId, ok: true,
+                                       data: ["permission": permission, "status": status])
+            }
+
+        case "openSettings":
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+            sendRouterResult(callbackId: callbackId, ok: true, data: ["ok": true])
+
+        default:
+            sendRouterResult(callbackId: callbackId, ok: false,
+                             error: ["code": "method_not_found", "message": "permission.\(method)"])
         }
     }
 
