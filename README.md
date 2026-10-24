@@ -7,7 +7,16 @@
 ![License](https://img.shields.io/badge/License-AGPL--3.0-green)
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
-小程序以 ZIP 安装：一个 `manifest.json` 声明能力，页面用 HTML 或 KTML 编写，JS 通过 `wx.*`（Promise API）调用 45 项原生能力——相机、定位、健康、蓝牙、WebSocket、OCR、Live Activity……每项能力都要在 manifest 中声明、经过网关校验才会放行。
+小程序以 ZIP 安装：一个 `manifest.json` 声明能力，页面用 HTML 或 KTML 编写，JS 通过 `wx.*`（Promise API）调用 45 项原生能力——相机、定位、健康、蓝牙、通知、文件系统等。
+
+## 克隆项目
+
+```bash
+git clone https://github.com/KFZ342/kinter-open-source.git
+cd kinter-open-source
+```
+
+如果你只想下载源码压缩包，也可以直接在 GitHub 页面点击 `Code` → `Download ZIP`。
 
 ## 特性
 
@@ -40,7 +49,7 @@ WKWebView 桥接层 (BridgeMessageHandler)
 Provider（45 个能力，每会话全新实例）
 ```
 
-外围模块：`AppLibrary`（安装库持久化）、`PackageInstaller`（ZIP 校验安装）、`StoreManager`（商店源/更新/下载）、`GitHubAPI`（仓库/Pages 发布）、`StorePublisher`（发布到自建服务器）、`AIClient + AIGenerator`（AI 生成小程序）、`KinterAuthManager`（账号）、`PageRouter`（页面栈）、`KTMLCompiler`（模板编译）、`ActivityWidget` / `Intents` / `Spotlight`。
+外围模块：`AppLibrary`（安装库持久化）、`PackageInstaller`（ZIP 校验安装）、`StoreManager`（商店源/更新/下载）、`GitHubAPI`（仓库/Pages 发布）、`StorePublisher`（静态发布）、`IntentLauncher`（Siri / Spotlight）等。
 
 ## 仓库结构
 
@@ -60,12 +69,12 @@ SIGNING.md           自签安装指引
 
 | 分组 | 能力（级别） |
 |---|---|
-| 媒体与位置 | camera(L1) · photo(L1) · microphone(L1) · speech(L1) · location(L1) · locationWatch(L1) · videoRecord(L1) · qrScan(L1) · savePhoto(L1) |
-| 设备与系统 | deviceInfo(L0) · battery(L0) · network(L0) · motion(L1) · bluetooth(L1) · bluetoothScan(L1) · vibrate(L0) · brightness(L0) · screenAwake(L0) |
-| 系统集成 | contacts(L1) · calendar(L1) · reminder(L1) · notification(L1) · share(L0) · openURL(L0) · communication(L0) |
-| 数据与网络 | storage(L0) · clipboard(L0) · clipboardImage(L0) · files(L0) · http(L0) · websocket(L0) · upload(L0) · networkWatch(L0) |
-| 扩展与进阶 | tts(L0) · qrGenerate(L0) · ocr(L0) · audio(L0) · image(L0) · pdf(L0) · print(L0) · biometric(L1) · health(L2) |
-| 账号与生态 | account(L0) · spotlight(L0) · liveActivity(L2) |
+| | 媒体与位置 | camera(L1) · photo(L1) · microphone(L1) · speech(L1) · location(L1) · locationWatch(L1) · videoRecord(L1) · qrScan(L1) · savePhoto(L1) |
+| | 设备与系统 | deviceInfo(L0) · battery(L0) · network(L0) · motion(L1) · bluetooth(L1) · bluetoothScan(L1) · vibrate(L0) · brightness(L0) · screenAwake(L0) |
+| | 系统集成 | contacts(L1) · calendar(L1) · reminder(L1) · notification(L1) · share(L0) · openURL(L0) · communication(L0) |
+| | 数据与网络 | storage(L0) · clipboard(L0) · clipboardImage(L0) · files(L0) · http(L0) · websocket(L0) · upload(L0) · networkWatch(L0) |
+| | 扩展与进阶 | tts(L0) · qrGenerate(L0) · ocr(L0) · audio(L0) · image(L0) · pdf(L0) · print(L0) · biometric(L1) · health(L2) |
+| | 账号与生态 | account(L0) · spotlight(L0) · liveActivity(L2) |
 
 级别：**L0** 无授权 ｜ **L1** 系统弹窗授权 ｜ **L2** 需 entitlement。每个能力在 manifest 中声明后才会放行，未声明的调用返回 `capability_not_declared`。详细说明见 [docs/CAPABILITIES.md](docs/CAPABILITIES.md)。
 
@@ -157,7 +166,7 @@ JS SDK 清单：`SDK/wx.js`（所有 API 返回 Promise）；能力列表由 `To
 
 ## 账号与商店服务器
 
-**开源版不内置服务器实现**。账号登录、应用发布、商店订阅依赖自建服务器，构建后在「设置 → 账号 → 认证服务器」填入你的服务器地址。接口契约（社区可据此自建兼容服务）：
+**开源版不内置服务器实现**。账号登录、应用发布、商店订阅依赖自建服务器，构建后在「设置 → 账号 → 认证服务器」填入你的服务器地址。接口示例如下：
 
 ```
 POST /api/register        {username, password, name?} → {token, user}
@@ -190,4 +199,4 @@ GET  /store/:username/apps/:appId/:version.zip          → 应用包下载
 
 [GNU AGPL-3.0](LICENSE)（OSI 认证的开源协议）。
 
-一句话理解：**允许商用、修改与分发，但任何人将本项目或其衍生作品用于商业产品/服务时，都必须以相同协议公开对应源代码**（含网络服务场景，见第 13 条）。这是标准 copyleft 条款，公司法务可直接评估，无自定义附加条件。
+一句话理解：**允许商用、修改与分发，但任何人将本项目或其衍生作品用于商业产品/服务时，都必须以相同协议公开对应源代码**（含网络服务中的源码公开要求）。
