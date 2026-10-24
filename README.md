@@ -270,6 +270,25 @@ wx.openSetting()
 
 对应原生实现位于 `HostApp/Runtime/Gateway/PermissionManager.swift`，统一封装 AVFoundation / CoreLocation / Contacts / EventKit / UserNotifications / CoreBluetooth / CoreMotion / Speech / LocalAuthentication / HealthKit / Photos 授权链路。
 
+### 打开 iOS 原生 App（URL Scheme）
+
+小程序可通过 `wx.openURL` 用自定义 scheme 唤起已安装的 iOS 原生 App（微信 `weixin://`、QQ `mqq://`、支付宝 `alipay://`、本宿主 `kinter://` 等），并在打开前用 `wx.canOpenURL` 预检：
+
+```js
+// 预检：该 App 是否已安装、scheme 是否可打开
+wx.canOpenURL({ url: 'weixin://' }).then(res => console.log(res.canOpen)) // true/false
+
+// 打开原生 App（scheme 未注册会报错，便于小程序侧做降级提示）
+wx.openURL({ url: 'weixin://dl/chat' })
+  .then(res => console.log('已唤起微信'))
+  .catch(err => console.log('打开失败：', err.message))
+```
+
+安全说明：
+- 支持 http/https 及任意自定义 scheme；`file://`、`javascript://`、`data://`、`vbscript://`、`about:` 等危险 scheme 被硬禁止。
+- 打开前自动 `canOpenURL` 预检，App 未安装时返回明确错误 `provider_error`，小程序可据此展示"未安装"降级页。
+- `Info.plist` 已声明 `LSApplicationQueriesSchemes`（微信/QQ/支付宝/微博/淘宝/抖音/小红书/快手/kinter/tel/mailto/sms 等），保证 `canOpenURL` 对常见 App 返回真实结果。
+
 ## 安全模型
 
 Kinter 并不是“开放式 JS 沙箱”那么简单，而是更偏向“有边界的能力执行平台”。

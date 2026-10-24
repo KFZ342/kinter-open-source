@@ -66,7 +66,7 @@ enum PermissionCatalog {
               simulator: .available, simulatorNote: nil),
         .init(id: "share", displayName: "分享", detail: "系统分享面板", level: .l0,
               simulator: .available, simulatorNote: nil),
-        .init(id: "openURL", displayName: "打开链接", detail: "唤起浏览器或其他 App", level: .l0,
+        .init(id: "openURL", displayName: "打开链接/App", detail: "唤起浏览器、原生 App（URL Scheme）与系统界面", level: .l0,
               simulator: .available, simulatorNote: nil),
         .init(id: "clipboard", displayName: "剪贴板", detail: "读写剪贴板", level: .l0,
               simulator: .available, simulatorNote: nil),

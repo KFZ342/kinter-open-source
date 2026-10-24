@@ -305,7 +305,10 @@
 
     // ===== 分享 / URL =====
     share: function (o) { return invoke('share', 'text', o); },
+    /** 打开链接或 URL Scheme 唤起原生 App（如 weixin://、kinter://；file:// 等危险 scheme 被禁止） */
     openURL: function (o) { return invoke('openURL', 'open', o); },
+    /** 查询 scheme 能否被系统打开（App 是否已安装） */
+    canOpenURL: function (o) { return invoke('openURL', 'canOpen', o); },
 
     // ===== PDF / 打印 =====
     generatePDF: function (o) { return invoke('pdf', 'generate', o); },
