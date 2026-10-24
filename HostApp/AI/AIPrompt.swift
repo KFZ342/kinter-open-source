@@ -88,6 +88,39 @@ enum AIPrompt {
     10. CSS 用 -apple-system 字体，适配 prefers-color-scheme: dark，iPad 大屏下内容不要贴边。
     11. 所有代码必须能直接在 WKWebView 里运行，不需要构建、不需要 npm。
 
+    # 界面与体验规范（质量硬标准）
+
+    12. index.html 的 <head> 必须包含：
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    13. 首页必须有完整的视觉层级：明确的标题栏或页头、可扫读的内容区、清晰的底部操作区。
+        禁止生成"一片白、几行文字"的页面。工具类应用必须真的能用（输入→操作→结果）。
+    14. 用卡片承载内容：圆角 12-16px、浅色模式 #fff / 深色模式 #1c1c1e 背景、卡片间 12-16px 间距。
+    15. 触控目标不小于 44×44pt；列表行高不小于 48px。
+    16. 必须处理三种状态：加载态（骨架屏或 loading 提示）、空态（友好文案 + 引导操作）、错误态（可重试）。
+    17. 首屏加载后必须立即呈现有用内容，禁止长时间空白或"思考中"。数据获取失败时降级为静态占位。
+    18. 深色模式：用 CSS 变量定义颜色，@media (prefers-color-scheme: dark) 下整体切换，不能只改背景色。
+    19. 动画只用于状态反馈（按下、切换、出现），用 transform/opacity 实现，时长 150-250ms，禁止动画阻塞交互。
+    20. 长列表用分页或"加载更多"，不要一次性渲染上千条导致卡顿。
+
+    # 代码健壮性规范
+
+    21. 每个 wx.* 调用（await）都必须在 try/catch 里，catch 里用 wx.toast 提示或展示错误态。
+    22. 数据渲染前判空：数组先判断 length，对象先判断字段存在，防止 undefined 报错白屏。
+    23. 页面脚本用 IIFE 包裹，不污染全局；不重复定义 id；事件监听不绑定在可能被刷新的重复节点上。
+    24. 数字计算做边界处理（除零、NaN、负数）；金额/时长展示做格式化。
+    25. 输入校验：必填项为空时提示，非法格式（手机号/邮箱/日期）给出明确错误文案。
+    26. 定时器（setInterval/setTimeout）在页面隐藏或功能结束时清理；避免后台空转。
+
+    # 能力推荐（按分类）
+
+    - 工具类（计算器/单位换算/二维码/倒数日等）：storage + qrGenerate + vibrate + share
+    - 效率类（待办/笔记/日程/番茄钟）：storage + calendar + reminder + notification + pdf
+    - 娱乐类（音乐/游戏/弹幕/随机）：music + vibrate + tts + audio
+    - 健康类（喝水/步数/冥想/打卡）：health + stepCount + motion + notification
+    - 教育类（背单词/题库/识字/朗读）：tts + speech + storage + ocr
+    - 图片处理类：photo + chooseImage + compressImage + savePhotoToAlbum
+    - 需要权限的能力（相机/定位/麦克风等）配合第「权限管理」一节做授权引导，不要直接调用。
+
     # wx API 完整规格
 
     所有 wx.* 调用返回 Promise。成功 resolve 一个对象，失败 reject 一个错误对象。
@@ -283,6 +316,48 @@ enum AIPrompt {
     wx.setMusicVolume({ volume: Number })
         音量 0-1。resolve { ok: true, volume: Number }
 
+    ## 权限管理（iOS 原生）
+
+    wx.getPermissionStatus({ permission: String })
+        查询单个权限细分状态。permission 用 "scope.xxx" 名。
+        resolve { permission: String, status: String }
+        status: authorized（已授权）/ denied（被拒）/ notDetermined（未询问）/ restricted（系统限制）/ limited（部分授权）/ unsupported（设备不支持）
+
+    wx.getSetting({})
+        查询所有权限，微信风格。
+        resolve { authSetting: { "scope.camera": true, "scope.record": false, ... } }
+
+    wx.authorize({ permission: String })
+        申请权限，会弹系统授权框。permission 格式同上。
+        resolve { permission: String, status: String }（申请后的最终状态）
+
+    wx.openSetting({})
+        打开本 App 的系统设置页，权限被拒后引导用户手动开启。
+        resolve { ok: true }
+
+    常用 scope：scope.camera（相机）、scope.record（麦克风）、scope.userLocation（定位）、
+    scope.album（相册读）、scope.writePhotosAlbum（保存相册）、scope.addressBook（通讯录）、
+    scope.calendar（日历）、scope.reminders（提醒事项）、scope.notification（通知）、
+    scope.bluetooth（蓝牙）、scope.werun（运动）、scope.speech（语音识别）、scope.faceId（Face ID）、
+    scope.health（健康步数）、scope.tracking（广告追踪）、scope.localNetwork（本地网络）、
+    scope.nfc（NFC）、scope.mediaLibrary（媒体资料库）、scope.homeKit（智能家居）、scope.nearby（近距离）。
+
+    权限引导最佳实践：功能启动时先 getSetting 查状态 → 未授权就展示引导 UI → 用户点击后
+    wx.authorize 申请 → 被拒后 wx.openSetting 跳设置。不要把授权框放在页面加载时自动弹出。
+
+    ## 打开外部 App / 链接（URL Scheme）
+
+    wx.openURL({ url: String })
+        打开 http/https 链接，或自定义 scheme 唤起原生 App（如 "weixin://"、"kinter://"）。
+        App 未安装或 scheme 不支持时 reject { code: "provider_error" }。
+        resolve { ok: true }
+
+    wx.canOpenURL({ url: String })
+        预检 scheme 能否被系统打开（App 是否已安装）。
+        resolve { canOpen: Boolean }
+
+    唤起外部 App 前先 wx.canOpenURL 预检，未安装时展示"去安装/降级"提示，不要直接调用。
+
     # 完整 API 索引
 
     以下是从 SDK 自动生成的全部可用 API 名，按模块分组。
@@ -301,10 +376,13 @@ enum AIPrompt {
     生成后在心里过一遍：
     - files 里有 index.html 吗？
     - pages 和 files 的路径对得上吗？
-    - capabilities 的每个 key 都在上面清单里吗？
+    - capabilities 的每个 key 都在上面清单里吗？声明了的每个能力在代码里真实调用了吗？
     - files 里有 icon.svg 吗？它第一行是 <svg xmlns=... viewBox="0 0 512 512"> 吗？
     - 有没有用到外部 CDN、localStorage、fetch、alert？
     - 用到的 wx API 参数名和返回字段写对了吗？
+    - 页面有没有完整的视觉层级？加载态/空态/错误态三态齐了吗？
+    - 每个 await 都有 try/catch 吗？渲染前判空了吗？
+    - 需要权限的能力（相机/定位/相册等）做了授权引导吗？
 
     全过了再输出。只输出 JSON。
     """
@@ -359,11 +437,16 @@ enum AIPrompt {
     6. 禁止使用 XMLHttpRequest / fetch，用 wx.request。
     7. 禁止使用 alert / confirm / prompt，用 wx.toast / wx.showModal。
     8. 代码必须能直接在 WKWebView 里运行。
+    9. 每个 wx.* 调用都在 try/catch 里，渲染前判空，保证不白屏。
+    10. 需要权限的能力（相机/定位/相册/通知等）必须做授权引导：
+        wx.getSetting → wx.authorize → 被拒后 wx.openSetting，不要直接调用。
+    11. 界面保持原有视觉层级；新加页面也要有标题、内容、操作区三要素。
 
     # 完整 API 索引
 
     以下是从 SDK 自动生成的全部可用 API 名，按模块分组。
     **你只能使用这些 API，不要编造任何不在列表中的方法。**
+    完整参数与返回结构参考首次生成提示词里的「wx API 完整规格」。
 
     \(apiIndex)
 
@@ -379,6 +462,8 @@ enum AIPrompt {
     - 用户要求改的地方改到位了吗？
     - files 里有 index.html 和 icon.svg 吗？
     - 用到的 wx API 都在上面的索引和规格里吗？
+    - 新加的权限类能力做授权引导了吗？
+    - 改动后的代码每个 await 都有 try/catch、渲染前判空吗？
 
     只输出 JSON。
     """
