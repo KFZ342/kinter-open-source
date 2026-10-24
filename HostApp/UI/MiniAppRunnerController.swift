@@ -104,7 +104,15 @@ final class MiniAppRunnerController: UIViewController {
     private let logPanel = UIView()
     private let logTextView = UITextView()
     private let logCountLabel = UILabel()
-    private var logLines: [String] = []
+    private struct LogEntry {
+        let level: String
+        let line: String
+    }
+    private var logEntries: [LogEntry] = []
+    /// 当前过滤级别集合（nil 表示全部）
+    private var activeFilter: Set<String>?
+    private var logHeightConstraint: NSLayoutConstraint!
+    private let logFilterControl = UISegmentedControl(items: ["全部", "错误", "警告", "其他"])
 
     private func setupNavBar() {
         navBar.backgroundColor = .secondarySystemBackground
@@ -207,6 +215,12 @@ final class MiniAppRunnerController: UIViewController {
         logCountLabel.translatesAutoresizingMaskIntoConstraints = false
         bar.addSubview(logCountLabel)
 
+        // 级别过滤
+        logFilterControl.selectedSegmentIndex = 0
+        logFilterControl.addTarget(self, action: #selector(filterChanged), for: .valueChanged)
+        logFilterControl.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(logFilterControl)
+
         let clearBtn = UIButton(type: .system)
         clearBtn.setTitle("清空", for: .normal)
         clearBtn.titleLabel?.font = .systemFont(ofSize: 13, weight: .medium)
@@ -214,6 +228,22 @@ final class MiniAppRunnerController: UIViewController {
         clearBtn.addTarget(self, action: #selector(clearLog), for: .touchUpInside)
         clearBtn.translatesAutoresizingMaskIntoConstraints = false
         bar.addSubview(clearBtn)
+
+        // 分享 / 导出日志
+        let shareBtn = UIButton(type: .system)
+        shareBtn.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
+        shareBtn.tintColor = .systemBlue
+        shareBtn.addTarget(self, action: #selector(shareLog), for: .touchUpInside)
+        shareBtn.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(shareBtn)
+
+        // 面板高度切换（40% ↔ 75%）
+        let maxBtn = UIButton(type: .system)
+        maxBtn.setImage(UIImage(systemName: "arrow.up.left.and.arrow.down.right"), for: .normal)
+        maxBtn.tintColor = .systemGray
+        maxBtn.addTarget(self, action: #selector(toggleLogHeight), for: .touchUpInside)
+        maxBtn.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(maxBtn)
 
         let closeBtn = UIButton(type: .system)
         closeBtn.setImage(UIImage(systemName: "chevron.down"), for: .normal)
@@ -232,28 +262,45 @@ final class MiniAppRunnerController: UIViewController {
         logTextView.translatesAutoresizingMaskIntoConstraints = false
         logPanel.addSubview(logTextView)
 
+        logHeightConstraint = logPanel.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.4)
+
         NSLayoutConstraint.activate([
             logPanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             logPanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             logPanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            logPanel.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.4),
+            logHeightConstraint,
 
             bar.leadingAnchor.constraint(equalTo: logPanel.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: logPanel.trailingAnchor),
             bar.topAnchor.constraint(equalTo: logPanel.topAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 34),
+            bar.heightAnchor.constraint(equalToConstant: 50),
 
+            title.topAnchor.constraint(equalTo: bar.topAnchor, constant: 5),
             title.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 14),
-            title.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
 
-            logCountLabel.leadingAnchor.constraint(equalTo: title.trailingAnchor, constant: 10),
-            logCountLabel.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            logCountLabel.leadingAnchor.constraint(equalTo: title.trailingAnchor, constant: 8),
+            logCountLabel.centerYAnchor.constraint(equalTo: title.centerYAnchor),
 
-            clearBtn.trailingAnchor.constraint(equalTo: closeBtn.leadingAnchor, constant: -10),
-            clearBtn.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            logFilterControl.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 14),
+            logFilterControl.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -4),
+            logFilterControl.heightAnchor.constraint(equalToConstant: 26),
+
+            clearBtn.leadingAnchor.constraint(greaterThanOrEqualTo: logFilterControl.trailingAnchor, constant: 8),
+            clearBtn.trailingAnchor.constraint(equalTo: shareBtn.leadingAnchor, constant: -6),
+            clearBtn.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+
+            shareBtn.trailingAnchor.constraint(equalTo: maxBtn.leadingAnchor, constant: -4),
+            shareBtn.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            shareBtn.widthAnchor.constraint(equalToConstant: 30),
+            shareBtn.heightAnchor.constraint(equalToConstant: 30),
+
+            maxBtn.trailingAnchor.constraint(equalTo: closeBtn.leadingAnchor, constant: -4),
+            maxBtn.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            maxBtn.widthAnchor.constraint(equalToConstant: 30),
+            maxBtn.heightAnchor.constraint(equalToConstant: 30),
 
             closeBtn.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -10),
-            closeBtn.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            closeBtn.centerYAnchor.constraint(equalTo: title.centerYAnchor),
             closeBtn.widthAnchor.constraint(equalToConstant: 28),
             closeBtn.heightAnchor.constraint(equalToConstant: 28),
 
@@ -262,6 +309,20 @@ final class MiniAppRunnerController: UIViewController {
             logTextView.trailingAnchor.constraint(equalTo: logPanel.trailingAnchor),
             logTextView.bottomAnchor.constraint(equalTo: logPanel.bottomAnchor)
         ])
+    }
+
+    /// 当前过滤是否包含该级别
+    private func shows(_ level: String) -> Bool {
+        guard let f = activeFilter else { return true }
+        return f.contains(level)
+    }
+
+    /// 按当前过滤重建全部文本（切过滤 / 清空 / 裁剪后调用）
+    private func rebuildLogText() {
+        let visible = logEntries.filter { shows($0.level) }.map { $0.line }
+        logTextView.text = visible.joined(separator: "\n")
+        let bottom = max(0, logTextView.contentSize.height - logTextView.bounds.height)
+        logTextView.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
     }
 
     private func appendLog(level: String, message: String) {
@@ -274,25 +335,46 @@ final class MiniAppRunnerController: UIViewController {
         case "debug":   tag = "DEBUG"
         default:        tag = "LOG"
         }
-        logLines.append("\(t) [\(tag)] \(message)")
-        if logLines.count > 1000 { logLines.removeFirst(logLines.count - 1000) }
-        logCountLabel.text = "\(logLines.count) 条"
-        guard !logPanel.isHidden else { return }
-        let atBottom = logTextView.contentOffset.y >= logTextView.contentSize.height - logTextView.bounds.height - 20
-        logTextView.text = logLines.joined(separator: "\n")
-        if atBottom || logLines.count <= 5 {
+        let entry = LogEntry(level: level, line: "\(t) [\(tag)] \(message)")
+        logEntries.append(entry)
+        if logEntries.count > 1000 {
+            logEntries.removeFirst(logEntries.count - 1000)
+            // 裁剪后重建（低频操作）
+            guard !logPanel.isHidden else {
+                logCountLabel.text = "\(logEntries.count) 条"
+                return
+            }
+            rebuildLogText()
+            logCountLabel.text = "\(logEntries.count) 条"
+            return
+        }
+        logCountLabel.text = "\(logEntries.count) 条"
+        guard !logPanel.isHidden, shows(level) else { return }
+
+        // 增量追加，避免整表重建
+        let atBottom = logTextView.contentSize.height <= logTextView.bounds.height ||
+            logTextView.contentOffset.y >= logTextView.contentSize.height - logTextView.bounds.height - 20
+        if logTextView.text.isEmpty {
+            logTextView.text = entry.line
+        } else {
+            logTextView.text += "\n" + entry.line
+        }
+        if atBottom {
             let bottom = max(0, logTextView.contentSize.height - logTextView.bounds.height)
             logTextView.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
         }
     }
 
+    /// 当前过滤下的全部日志行（用于分享/导出）
+    private func visibleLogText() -> String {
+        logEntries.filter { shows($0.level) }.map { $0.line }.joined(separator: "\n")
+    }
+
     @objc private func toggleLogPanel() {
         logPanel.isHidden.toggle()
         if !logPanel.isHidden {
-            logButton.tintColor = .systemGreen
+            rebuildLogText()
             appendLog(level: "info", message: "— 日志面板已打开 —")
-        } else {
-            logButton.tintColor = .systemGreen
         }
     }
 
@@ -301,9 +383,43 @@ final class MiniAppRunnerController: UIViewController {
     }
 
     @objc private func clearLog() {
-        logLines.removeAll()
+        logEntries.removeAll()
         logTextView.text = ""
         logCountLabel.text = "0 条"
+    }
+
+    @objc private func filterChanged() {
+        switch logFilterControl.selectedSegmentIndex {
+        case 1:  activeFilter = ["error"]
+        case 2:  activeFilter = ["warn"]
+        case 3:  activeFilter = ["log", "info", "debug"]
+        default: activeFilter = nil
+        }
+        rebuildLogText()
+    }
+
+    @objc private func toggleLogHeight() {
+        let big = logHeightConstraint.multiplier == 0.75
+        logHeightConstraint.isActive = false
+        logHeightConstraint = logPanel.heightAnchor.constraint(
+            equalTo: view.heightAnchor, multiplier: big ? 0.4 : 0.75)
+        logHeightConstraint.isActive = true
+        UIView.animate(withDuration: 0.25) {
+            self.view.layoutIfNeeded()
+        }
+    }
+
+    @objc private func shareLog() {
+        let text = visibleLogText()
+        guard !text.isEmpty else {
+            HostPopup.toast("暂无日志")
+            return
+        }
+        let ac = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        if let pop = ac.popoverPresentationController {
+            pop.sourceView = logPanel
+        }
+        present(ac, animated: true)
     }
 
     // MARK: - 加载
