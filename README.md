@@ -157,11 +157,9 @@ xcodegen generate --spec Tools/project.yml
 
 ### 4. 直接安装 IPA（可选）
 
-这个仓库自带未签名 IPA，可直接用于测试：
+开箱即用的未签名 IPA（含最新音乐播放能力）发布在 GitHub Releases：
 
-```text
-Releases/Kinter-unsigned-1.1.0.ipa
-```
+**下载：[Releases 页面](https://github.com/KFZ342/kinter-open-source/releases/latest)（下载 `Kinter-unsigned-*.ipa`）**
 
 安装方式：
 - TrollStore：直接安装
