@@ -177,7 +177,9 @@ final class AgentRuntime {
                     msgs.append(.init(role: "assistant", content: m.text))
                 }
             case "tool":
-                msgs.append(.init(role: "tool", content: m.text))
+                // 纯文本协议：工具结果以 user 角色回灌（部分 OpenAI 兼容服务要求
+                // tool 消息必须携带 tool_call_id 配对，纯文本方案统一走 user 最稳）
+                msgs.append(.init(role: "user", content: "【工具执行结果】\(m.text)"))
             default:
                 break
             }
