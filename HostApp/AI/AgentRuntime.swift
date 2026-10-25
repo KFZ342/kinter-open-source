@@ -24,7 +24,8 @@ final class AgentRuntime {
         case list
         case delete(appId: String)
         case help
-        case needTarget(what: String)     // 需要指定目标小程序
+        case chat(text: String)          // 非管理意图：正常聊天
+        case needTarget(what: String)    // 需要指定目标小程序
     }
 
     // MARK: - 状态
@@ -88,6 +89,8 @@ final class AgentRuntime {
         case .needTarget(let what):
             appendAgent("需要告诉我操作哪个小程序。当前已装：\n" + installedListText() +
                         "\n\n或者先让我“生成一个小程序”。（你想\(what)）")
+        case .chat(let text):
+            runChat(text: text)
         }
     }
 
@@ -136,16 +139,58 @@ final class AgentRuntime {
         // 修改/迭代（有对象时）
         if containsAny(text, ["改成", "修改", "变成", "换个", "加上", "添加", "优化", "改一下", "换一个",
                               "增加", "删掉", "红色", "蓝色", "主题", "风格", "界面", "功能"]) {
-            if generated != nil || boundApp != nil {
+            if generated != nil || boundApp != nil || matchedInstalledAppID(text) != nil {
                 return .iterate(instruction: text)
             }
-            if let id = matchedInstalledAppID(text) {
-                return .iterate(instruction: text)
-            }
-            return .iterate(instruction: text)
+            return .chat(text: text)
         }
-        // 默认：当作生成请求
-        return .generate(prompt: text)
+        // 明确生成意图：生成动词 / 提到小程序且是需求描述
+        let genVerbs = ["生成", "做一个", "帮我做", "帮我弄", "写一个", "创建一个", "开发一个",
+                        "搞一个", "来个", "做个", "想要一个", "我想要", "能不能做一个", "给我做",
+                        "弄一个", "做个小程序", "写个小程序", "生成一个"]
+        if containsAny(text, genVerbs) {
+            return .generate(prompt: text)
+        }
+        if text.contains("小程序") && text.count > 6 {
+            return .generate(prompt: text)
+        }
+        // 其余：正常聊天
+        return .chat(text: text)
+    }
+
+    /// 纯聊天：流式回复，不触发小程序动作
+    private func runChat(text: String) {
+        isBusy = true
+        let bubble = ChatMessage(role: "agent", text: "", isStreaming: true)
+        messages.append(bubble)
+        onUpdate?()
+
+        let client = AIClient()
+        currentClient = client
+        client.chatStream(
+            messages: [
+                .init(role: "system", content: AIPrompt.chatSystem(installed: installedListText())),
+                .init(role: "user", content: text)
+            ],
+            onReasoning: { [weak self] _ in self?.streamAppend(bubbleIdx: nil, text: "") },
+            onDelta: { [weak self] chunk in self?.streamAppend(bubbleIdx: nil, text: chunk) },
+            completion: { [weak self] result in
+                guard let self = self else { return }
+                self.currentClient = nil
+                self.isBusy = false
+                switch result {
+                case .success:
+                    break
+                case .failure(let err):
+                    if case AIClient.AIError.cancelled = err {
+                        self.cancel()
+                    } else {
+                        self.appendAgent("⚠️ 回复失败：\(err.localizedDescription)")
+                    }
+                }
+                self.onUpdate?()
+            }
+        )
     }
 
     // MARK: - 动作执行
