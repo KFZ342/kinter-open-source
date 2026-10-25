@@ -85,6 +85,20 @@ final class PurchaseManager {
         UserDefaults.standard.set(owned, forKey: "kinter.ownedAppIds.v1")
     }
 
+    // MARK: - 支付通道配置
+
+    /// 当前支付通道。
+    ///  - `.local`：本地付费（TestFlight/未上架阶段）——用户本地确认付费后，
+    ///    自动把鉴权信息上传服务器登记；不经过 Apple 收银台。
+    ///  - `.iap`：Apple IAP（上架后）——StoreKit 2 收银台，服务端验 receipt。
+    enum PaymentChannel {
+        case local
+        case iap
+    }
+
+    /// 当前通道（TestFlight 阶段默认本地付费；上架后切 .iap）
+    static var paymentChannel: PaymentChannel = .local
+
     // MARK: - 服务端购买
 
     enum PurchaseError: LocalizedError {
@@ -99,9 +113,15 @@ final class PurchaseManager {
         }
     }
 
-    /// 服务端购买（付费应用必须登录；幂等——重复购买直接返回成功）
+    /// 服务端购买（付费应用必须登录；幂等——重复购买直接返回成功）。
+    /// 本地付费：确认付费后调用，自动上传鉴权信息到服务器登记；失败自动重试一次。
     func purchase(appId: String, price: Double,
                   completion: @escaping (Result<Void, Error>) -> Void) {
+        purchaseOnce(appId: appId, price: price, retried: false, completion: completion)
+    }
+
+    private func purchaseOnce(appId: String, price: Double, retried: Bool,
+                              completion: @escaping (Result<Void, Error>) -> Void) {
         guard let token = AuthStore.shared.accessToken else {
             completion(.failure(PurchaseError.notLoggedIn))
             return
@@ -112,16 +132,24 @@ final class PurchaseManager {
             completion(.failure(PurchaseError.server("服务器地址无效")))
             return
         }
+        // method: local / iap —— 服务端记录支付方式便于对账
+        let method = Self.paymentChannel == .iap ? "iap" : "local"
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 30
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["appId": appId])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["appId": appId, "method": method])
 
         URLSession.shared.dataTask(with: req) { data, resp, err in
             DispatchQueue.main.async {
                 if let err = err {
+                    // 网络类失败自动重试一次
+                    if !retried {
+                        NSLog("[Purchase] retry once after: %@", err.localizedDescription)
+                        self.purchaseOnce(appId: appId, price: price, retried: true, completion: completion)
+                        return
+                    }
                     completion(.failure(PurchaseError.server(err.localizedDescription)))
                     return
                 }

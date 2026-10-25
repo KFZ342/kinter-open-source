@@ -171,8 +171,9 @@ extension StoreViewController: UITableViewDataSource, UITableViewDelegate {
         present(alert, animated: true)
     }
 
-    /// 购买并安装：未登录先提示登录；登录后调服务端购买（记录到账号），
-    /// 成功后登记 7% 平台抽成结算流水并安装。
+    /// 购买并安装：
+    ///  - 本地付费通道（当前）：确认付费后自动把鉴权信息上传服务器登记，成功即解锁下载。
+    ///  - 上架后：切换 Apple IAP（PurchaseManager.paymentChannel = .iap）。
     private func purchaseAndInstall(_ app: StoreApp) {
         guard let price = app.price, price > 0 else { doInstall(app); return }
 
@@ -189,16 +190,25 @@ extension StoreViewController: UITableViewDataSource, UITableViewDelegate {
             return
         }
 
-        PurchaseManager.shared.purchase(appId: app.appId, price: price) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success:
-                HostPopup.toast(String(format: "购买成功，正在下载…", price))
-                self.doInstall(app)
-            case .failure(let err):
-                HostPopup.modal(title: "购买失败",
-                                content: err.localizedDescription,
-                                confirmText: "知道了", cancelText: nil) { _ in }
+        // 本地付费确认：确认后自动上传鉴权信息到服务器
+        let channel = PurchaseManager.paymentChannel == .iap ? "Apple 支付" : "本地支付"
+        HostPopup.modal(
+            title: String(format: "确认支付 ¥%.2f", price),
+            content: "支付通道：\(channel)\n确认后购买记录将自动上传到你的账号，之后可随时下载。",
+            confirmText: "确认支付",
+            cancelText: "取消"
+        ) { [weak self] confirmed in
+            guard confirmed, let self = self else { return }
+            PurchaseManager.shared.purchase(appId: app.appId, price: price) { result in
+                switch result {
+                case .success:
+                    HostPopup.toast("购买成功，正在下载…")
+                    self.doInstall(app)
+                case .failure(let err):
+                    HostPopup.modal(title: "购买失败",
+                                    content: err.localizedDescription,
+                                    confirmText: "知道了", cancelText: nil) { _ in }
+                }
             }
         }
     }
