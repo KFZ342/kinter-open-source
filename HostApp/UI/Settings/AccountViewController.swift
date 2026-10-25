@@ -141,25 +141,30 @@ final class AccountViewController: UIViewController {
 
 
 extension AccountViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int { 2 }
+    func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 1
-        default: return state.isLoggedIn ? 1 : 2
+        case 1: return state.isLoggedIn ? 1 : 2
+        default: return 1          // 服务器
         }
     }
 
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0: return "状态"
-        default: return "操作"
+        case 1: return "操作"
+        default: return "服务器"
         }
     }
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         if section == 1 && !state.isLoggedIn {
             return "登录后，小程序可通过 wx.getAccount() 读取你的公开资料。"
+        }
+        if section == 2 {
+            return "账号/商店/付费服务地址。本地测试可填 serveo/localhost.run 隧道地址。"
         }
         return nil
     }
@@ -174,6 +179,16 @@ extension AccountViewController: UITableViewDataSource, UITableViewDelegate {
                 cell.configure(user: user, subtitle: "@\(user.username)")
             }
             cell.selectionStyle = .none
+            return cell
+        }
+
+        // 服务器地址输入
+        if indexPath.section == 2 {
+            let cell = tableView.dequeueReusableCell(withIdentifier: AuthServerFieldCell.reuseID, for: indexPath) as! AuthServerFieldCell
+            cell.configure(value: AppSettings.shared.authServerURL ?? "") { [weak self] text in
+                AppSettings.shared.authServerURL = text.trimmingCharacters(in: .whitespaces)
+                self?.table.reloadData()
+            }
             return cell
         }
 
