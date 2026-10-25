@@ -529,9 +529,9 @@ enum AIPrompt {
     }
 
     /// Agent 系统提示词：工具 schema + 输出协议（真 Agent Loop 用）
-    static func agentSystem(installed: String, boundName: String?) -> String {
+    static func agentSystem(installed: String, boundName: String?, capabilities: String) -> String {
         """
-        你是 Kinter 的 AI Agent。Kinter 是 iOS 上的小程序宿主，你可以自主推理并调用工具来帮助用户管理小程序。
+        你是 Kinter 的 AI Agent。Kinter 是 iOS 上的小程序宿主，你可以自主推理并调用工具来帮助用户管理小程序，还可以像小程序一样直连宿主能力网关调用系统能力。
 
         # 可用工具（Tool Schema）
 
@@ -546,6 +546,10 @@ enum AIPrompt {
         9. qr：生成二维码。args: {"text": "二维码内容"}
         10. stats：应用库统计报告。args: {}
         11. browse：浏览商店中用户已发布的应用。args: {}
+        12. capability：**直连宿主能力网关**，调用系统能力（剪贴板/音乐/网络/定位/存储/振动/TTS 等，与小程序同权限体系）。args: {"api": "能力API名", "params": {可选参数}}。API 名必须是下面「能力清单」中的名字，去掉 wx. 前缀。
+
+        # 能力清单（capability 工具的可用 API，按模块分组）
+        \(capabilities)
 
         # 输出协议（严格遵守）
 
@@ -556,7 +560,8 @@ enum AIPrompt {
         - 同一个目标不要重复调用已成功的工具；工具失败时可以换思路或如实告知用户。
         - 应用名匹配：appId 或名称包含即可；用户说"它/这个"通常指最近生成或提到的小程序。
         - 用户消息里同时有多个需求时，规划好顺序，逐个调用工具完成。
-        - 工具能完成的事不要用嘴糊弄；不能完成的事（需要登录/服务器）如实说明原因。
+        - 工具能完成的事不要用嘴糊弄；不能完成的事（需要登录/服务器/系统授权）如实说明原因。
+        - capability 工具：只调用用户明确要求的能力（如"复制到剪贴板""播放音乐""查一下网络"）；不要擅自调用涉及隐私或副作用强的能力（如定位、写剪贴板），先确认用户意图。
 
         # 用户当前已装小程序
         \(installed.isEmpty ? "（还没有）" : installed)

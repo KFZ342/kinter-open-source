@@ -69,6 +69,26 @@ final class AgentRuntime {
     /// Agent 循环最大轮数（防死循环）
     private let maxAgentRounds = 6
 
+    /// Agent 专属能力网关（与小程序同权限体系，可直连调用全部 wx.* 能力）
+    private lazy var agentGateway: CapabilityGateway = {
+        let g = CapabilityGateway()
+        var caps: [String: MiniAppManifest.CapabilityDecl] = [:]
+        for (name, level) in CapabilityRegistry.shared.allCapabilities() {
+            caps[name] = MiniAppManifest.CapabilityDecl(level: level.rawValue, reason: "Agent 直连", scope: nil)
+        }
+        let manifest = MiniAppManifest(appId: "com.kinter.agent",
+                                       version: "1.0.0",
+                                       name: "AI Agent",
+                                       minHostVersion: nil,
+                                       pages: ["index"],
+                                       capabilities: caps,
+                                       window: nil,
+                                       icon: nil,
+                                       price: nil)
+        g.setManifest(manifest)
+        return g
+    }()
+
     init(boundApp: InstalledApp? = nil) {
         self.boundApp = boundApp
         var opener = "我是你的小程序 AI 管家（Agent 模式），可以自己规划工具调用帮你生成、修改、安装、发布、打开、删除、导出小程序，还能生成二维码、统计和逛商店。"
@@ -162,7 +182,8 @@ final class AgentRuntime {
         var msgs: [AIClient.Message] = []
         msgs.append(.init(role: "system",
                           content: AIPrompt.agentSystem(installed: installedListText(),
-                                                        boundName: boundApp?.name)
+                                                        boundName: boundApp?.name,
+                                                        capabilities: capabilitiesText())
                             + toolHistoryText()))
         for m in messages {
             if m.isStreaming || m.isToolCallFrame { continue }
@@ -243,6 +264,10 @@ final class AgentRuntime {
             feedBack(statsToolResult(), round: round)
         case "browse":
             browseToolResult(round: round)
+        case "capability":
+            let api = (args["api"] as? String) ?? (args["name"] as? String) ?? ""
+            let params = (args["params"] as? [String: Any]) ?? [:]
+            runCapabilityTool(api: api, params: params, round: round)
         default:
             feedBack(ToolResult(tool: tool, input: tool,
                                 summary: "未知工具「\(tool)」，请只从提供的工具中选择",
@@ -735,6 +760,57 @@ final class AgentRuntime {
                             subtitle: "\(total) 个应用",
                             summary: "AI 生成 \(aiCount) · 导入 \(importCount) · 付费 \(paidCount)",
                             detail: detail))
+    }
+
+    /// capability：直连宿主能力网关（与小程序同权限体系，调 wx.* 能力）
+    private func runCapabilityTool(api: String, params: [String: Any], round: Int) {
+        let name = api.replacingOccurrences(of: "wx.", with: "")
+        guard let mm = WXAPIList.moduleMap[name],
+              let sep = mm.firstIndex(of: ".") else {
+            feedBack(ToolResult(tool: "capability", input: api,
+                                summary: "未知能力「\(name)」：请从能力清单中选择（可用 getClipboard/setClipboard/playMusic/getSystemInfo/getBattery/getNetwork/getLocation/getStorage/setStorage 等）。",
+                                card: nil), round: round)
+            return
+        }
+        let module = String(mm[..<sep])
+        let method = String(mm[mm.index(after: sep)...])
+        agentGateway.invoke(module: module, method: method, params: params) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success(let value):
+                    let json = (try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .fragmentsAllowed]))
+                        .flatMap { String(data: $0, encoding: .utf8) } ?? String(describing: value)
+                    let truncated = json.count > 800 ? String(json.prefix(800)) + "…(已截断)" : json
+                    self.feedBack(ToolResult(
+                        tool: "capability", input: api,
+                        summary: "能力 \(module).\(method) 调用成功：\(truncated)",
+                        card: AgentCard(type: "capability",
+                                        title: api,
+                                        subtitle: "\(module).\(method) · 成功",
+                                        summary: "能力调用成功",
+                                        detail: "## 🔌 \(api)\n\n`\(module).\(method)` 调用成功，返回：\n\n```json\n\(json)\n```")), round: round)
+                case .failure(let err):
+                    self.feedBack(ToolResult(tool: "capability", input: api,
+                                             summary: "能力 \(module).\(method) 调用失败：\(err.localizedDescription)",
+                                             card: nil), round: round)
+                }
+            }
+        }
+    }
+
+    /// 能力清单文本（按模块聚合，注入 Agent 系统提示词）
+    func capabilitiesText() -> String {
+        var groups: [String: [String]] = [:]
+        for (name, mm) in WXAPIList.moduleMap {
+            let module = String(mm.split(separator: ".").first ?? "")
+            groups[module, default: []].append(name)
+        }
+        let rows = groups.keys.sorted().map { module in
+            let apis = groups[module]!.sorted().joined(separator: ", ")
+            return "- **\(module)**：\(apis)"
+        }.joined(separator: "\n")
+        return rows
     }
 
     // MARK: - 收尾 / 取消
