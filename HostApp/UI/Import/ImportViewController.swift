@@ -137,7 +137,7 @@ final class ImportViewController: UIViewController,
     }
 
     @objc private func openAIGenerate() {
-        navigationController?.pushViewController(AIGenerateViewController(), animated: true)
+        navigationController?.pushViewController(AgentChatViewController(), animated: true)
     }
 
     @objc private func openAIModel() {

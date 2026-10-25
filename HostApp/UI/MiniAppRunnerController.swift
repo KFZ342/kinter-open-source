@@ -505,10 +505,10 @@ final class MiniAppRunnerController: UIViewController {
 
     @objc private func reloadPage() { loadApp() }
 
-    /// 打开迭代页：预填原描述，生成后覆盖本应用
+    /// 打开 AI 修改：绑定本应用，用对话指挥 AI 迭代
     @objc private func iterateApp() {
         guard app.isAIGenerated else { return }
-        let gen = AIGenerateViewController(iterateApp: app)
+        let gen = AgentChatViewController(boundApp: app)
         let nav = UINavigationController(rootViewController: gen)
         nav.modalPresentationStyle = .formSheet
         present(nav, animated: true)
