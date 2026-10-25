@@ -34,10 +34,17 @@ final class MiniAppWebView: UIView {
                                    didReceive message: WKScriptMessage) {
             guard message.name == "jslog",
                   let body = message.body as? [String: Any] else { return }
-            // 批量：[[level, message], ...]
-            if let batch = body["batch"] as? [[String]] {
+            // 批量：[[level, message], ...]（宽松解析，杜绝桥接失败静默吞日志）
+            if let batch = body["batch"] as? [[Any]] {
                 for pair in batch where pair.count >= 2 {
-                    owner?.onJavascriptLog?(pair[0], pair[1])
+                    let lv = pair[0] as? String ?? "log"
+                    let msg: String
+                    if let s = pair[1] as? String {
+                        msg = s
+                    } else {
+                        msg = String(describing: pair[1])
+                    }
+                    owner?.onJavascriptLog?(lv, msg)
                 }
                 return
             }
