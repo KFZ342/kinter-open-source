@@ -103,6 +103,7 @@
 		D8BFE26223E1F6520C081D9A /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = C3F6836BEF62E75F1E4216C1 /* index.html */; };
 		D92AEA9545575028DDB5B206 /* OpenMiniAppIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23C7CB3709C2A95AE523548 /* OpenMiniAppIntent.swift */; };
 		DA4E6AB1784B4E3C47BB833E /* InstalledApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F87B514ED361E149C413FFC /* InstalledApp.swift */; };
+		DA756566CDB8EA22DC927269 /* testmusic.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3252B432A7A8EBD612C856CF /* testmusic.mp3 */; };
 		DBFB35DA8A7AC5A4D1832947 /* KinterAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEED58F51AD2186E1B168D2E /* KinterAuthManager.swift */; };
 		DCECB15ADE21C9FC52DCEC51 /* PageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEDCFF4374B5F3C98259F2D /* PageRouter.swift */; };
 		DD53FCA8F1A37147E6D14851 /* wx.js in Resources */ = {isa = PBXBuildFile; fileRef = 678C7B5AF115D1E29966EB6C /* wx.js */; };
@@ -180,6 +181,7 @@
 		3174019C088CD4A457837EFC /* StorePublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorePublisher.swift; sourceTree = "<group>"; };
 		31E8D3A212A70C848C91BEC2 /* SpotlightProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightProvider.swift; sourceTree = "<group>"; };
 		325018E2E5994952FDA17CB0 /* GatewayError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayError.swift; sourceTree = "<group>"; };
+		3252B432A7A8EBD612C856CF /* testmusic.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = testmusic.mp3; sourceTree = "<group>"; };
 		34288CF47B31E7B3C69B4C02 /* SourceManagerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceManagerViewController.swift; sourceTree = "<group>"; };
 		351FCF8C4188EEAAC8CE4925 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		385A89F1EDB492842EAC5F9B /* PermissionCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionCatalog.swift; sourceTree = "<group>"; };
@@ -573,6 +575,7 @@
 			isa = PBXGroup;
 			children = (
 				6461D3741B1CE73994AC99CA /* Assets.xcassets */,
+				3252B432A7A8EBD612C856CF /* testmusic.mp3 */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -722,6 +725,7 @@
 				D8BFE26223E1F6520C081D9A /* index.html in Resources */,
 				686DB87278BE8D8AD6610EE5 /* ktml.js in Resources */,
 				4D1F1380CE6B25CEBC356456 /* manifest.json in Resources */,
+				DA756566CDB8EA22DC927269 /* testmusic.mp3 in Resources */,
 				DD53FCA8F1A37147E6D14851 /* wx.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

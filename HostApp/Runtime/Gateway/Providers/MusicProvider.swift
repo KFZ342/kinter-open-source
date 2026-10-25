@@ -22,6 +22,16 @@ final class MusicProvider: CapabilityProvider {
         case "play":
             handlePlay(params: params, completion: completion)
 
+        case "playTest":
+            // 播放宿主内置测试音频（开发者无需准备素材即可验证音乐播放）
+            guard let url = Bundle.main.url(forResource: "testmusic", withExtension: "mp3") else {
+                completion(.failure(.providerError("内置测试音频缺失")))
+                return
+            }
+            var p = params
+            p["path"] = url.path
+            handlePlay(params: p, completion: completion)
+
         case "pause":
             player?.pause()
             completion(.success(["ok": true]))

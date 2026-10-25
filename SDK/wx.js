@@ -254,6 +254,7 @@
     seekMusic: function (o) { return invoke('music', 'seek', o); },
     getMusicState: function (o) { return invoke('music', 'getState', o); },
     setMusicVolume: function (o) { return invoke('music', 'setVolume', o); },
+    playTestMusic: function (o) { return invoke('music', 'playTest', o); }, // 播放宿主内置测试音频（开发调试）
 
     // ===== TTS =====
     speak: function (o) { return invoke('tts', 'speak', o); },
