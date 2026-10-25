@@ -25,7 +25,10 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
             return
         }
         let params = body["params"] as? [String: Any] ?? [:]
-        NSLog("[Bridge] received \(module).\(method) params=\(params)")
+#if DEBUG
+        // 只记录模块与方法，不打印 params（可能含 token/密码等敏感数据，且高频调用会刷日志）
+        NSLog("[Bridge] %@.%@", module, method)
+#endif
 
         // 路由模块由原生直接处理，不经过能力网关
         if module == "router" {
@@ -385,15 +388,33 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
 
     // MARK: - 主动推送
 
+    /// 事件批量推送缓冲。同一轮 RunLoop 内的多次 emit 合并为一次 evaluateJavaScript，
+    /// 高频事件（websocket.message / network.change / 运动监听）从 N 次注入降为 1 次。
+    private var pendingEvents: [[String: Any]] = []
+    private var eventFlushScheduled = false
+
     /// 原生向 JS 主动推送事件。JS 侧通过 wx.on(event, handler) 监听。
     func emit(event: String, data: Any) {
-        let payload: [String: Any] = ["event": event, "data": data]
-        guard let json = try? JSONSerialization.data(withJSONObject: payload, options: []),
-              let str = String(data: json, encoding: .utf8) else { return }
-        let js = "window.__wxEmit && window.__wxEmit(\(str));"
-        DispatchQueue.main.async {
-            self.webView?.evaluateJavaScript(js, completionHandler: nil)
+        let item: [String: Any] = ["event": event, "data": data]
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.pendingEvents.append(item)
+            if !self.eventFlushScheduled {
+                self.eventFlushScheduled = true
+                DispatchQueue.main.async { [weak self] in self?.flushEvents() }
+            }
         }
+    }
+
+    private func flushEvents() {
+        eventFlushScheduled = false
+        guard !pendingEvents.isEmpty else { return }
+        let batch = pendingEvents
+        pendingEvents.removeAll()
+        guard let json = try? JSONSerialization.data(withJSONObject: batch, options: []),
+              let str = String(data: json, encoding: .utf8) else { return }
+        let js = "window.__wxEmitBatch && window.__wxEmitBatch(\(str));"
+        webView?.evaluateJavaScript(js, completionHandler: nil)
     }
 
     private func sendRouterResult(callbackId: String, ok: Bool, data: [String: Any]? = nil, error: [String: Any]? = nil) {

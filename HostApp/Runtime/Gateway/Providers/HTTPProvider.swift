@@ -10,6 +10,14 @@ final class HTTPProvider: CapabilityProvider {
     /// 响应体大小上限（字节）。10MB，防止恶意小程序把宿主内存打爆。
     private static let maxResponseBytes = 10 * 1024 * 1024
 
+    /// 复用单例会话，避免高频 wx.request（轮询等）反复创建 URLSession。
+    /// downloadTask 并发安全；per-request 超时通过 URLRequest.timeoutInterval 覆盖。
+    private static let sharedSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        return URLSession(configuration: config)
+    }()
+
     func invoke(method: String, params: [String: Any], completion: @escaping (Result<Any, GatewayError>) -> Void) {
         guard method == "request" else {
             completion(.failure(.methodNotFound(module: Self.capability, method: method)))
@@ -28,15 +36,10 @@ final class HTTPProvider: CapabilityProvider {
 
         // 允许小程序自定义超时，但收紧上限（防无限挂起）
         let timeout = min(max((params["timeout"] as? TimeInterval) ?? Self.defaultTimeout, 1), 60)
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = timeout
-        config.timeoutIntervalForResource = timeout
-        config.urlCache = nil
-        let session = URLSession(configuration: config)
+        req.timeoutInterval = timeout
 
         // 下载到临时文件再校验大小，避免大响应直接攒进内存
-        session.downloadTask(with: req) { tmpURL, resp, err in
-            session.invalidateAndCancel()
+        Self.sharedSession.downloadTask(with: req) { tmpURL, resp, err in
             DispatchQueue.main.async {
                 if let err = err {
                     completion(.failure(.providerError(err.localizedDescription)))

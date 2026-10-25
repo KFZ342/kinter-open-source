@@ -67,6 +67,12 @@
     }
   };
 
+  // 原生批量推送入口（同一 RunLoop 内的多条事件合并注入）
+  root.__wxEmitBatch = function (arr) {
+    if (!arr || !arr.length) return;
+    for (var i = 0; i < arr.length; i++) root.__wxEmit(arr[i]);
+  };
+
   function on(event, handler) {
     if (typeof handler !== 'function') return;
     if (!listeners[event]) listeners[event] = [];
