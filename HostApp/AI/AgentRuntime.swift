@@ -48,6 +48,8 @@ final class AgentRuntime {
 
     private var currentClient: AIClient?
     private var lastPrompt = ""
+    /// 忙时排队的待处理消息（处理完上一条自动接上，不再吞消息）
+    private var pendingQueue: [String] = []
 
     init(boundApp: InstalledApp? = nil) {
         self.boundApp = boundApp
@@ -63,15 +65,26 @@ final class AgentRuntime {
     // MARK: - 发送
 
     func send(_ text: String) {
-        guard !isBusy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         messages.append(ChatMessage(role: "user", text: trimmed, isStreaming: false))
         onUpdate?()
+        if isBusy {
+            pendingQueue.append(trimmed)
+            appendAgent("⏳ 正在处理上一条，这条已排队，马上接上…")
+            onUpdate?()
+            return
+        }
         lastPrompt = trimmed
+        execute(routeIntent(trimmed))
+    }
 
-        switch routeIntent(trimmed) {
+    /// 执行路由后的动作（异步动作会置 busy）
+    private func execute(_ action: Action) {
+        switch action {
         case .help:
             appendAgent(helpText)
+            onUpdate?()
         case .generate(let prompt):
             runGenerate(prompt: prompt)
         case .iterate(let instruction):
@@ -89,16 +102,28 @@ final class AgentRuntime {
         case .needTarget(let what):
             appendAgent("需要告诉我操作哪个小程序。当前已装：\n" + installedListText() +
                         "\n\n或者先让我“生成一个小程序”。（你想\(what)）")
+            onUpdate?()
         case .chat(let text):
             runChat(text: text)
         }
     }
 
+    /// 异步动作完成后统一收尾：复位 busy + 接续排队消息
+    private func completeAction() {
+        isBusy = false
+        currentClient = nil
+        if !pendingQueue.isEmpty {
+            let next = pendingQueue.removeFirst()
+            lastPrompt = next
+            execute(routeIntent(next))
+        }
+        onUpdate?()
+    }
+
     func cancel() {
         currentClient?.cancel()
         closeStreamingBubble()
-        isBusy = false
-        onUpdate?()
+        completeAction()
     }
 
     /// 关闭所有流式气泡（输出完成/取消时调用，避免 ▋ 光标残留）
@@ -181,8 +206,6 @@ final class AgentRuntime {
             onDelta: { [weak self] chunk in self?.streamAppend(bubbleIdx: nil, text: chunk) },
             completion: { [weak self] result in
                 guard let self = self else { return }
-                self.currentClient = nil
-                self.isBusy = false
                 self.closeStreamingBubble()
                 switch result {
                 case .success:
@@ -194,7 +217,7 @@ final class AgentRuntime {
                         self.appendAgent("⚠️ 回复失败：\(err.localizedDescription)")
                     }
                 }
-                self.onUpdate?()
+                self.completeAction()
             }
         )
     }
@@ -221,8 +244,6 @@ final class AgentRuntime {
             },
             completion: { [weak self] result in
                 guard let self = self else { return }
-                self.currentClient = nil
-                self.isBusy = false
                 switch result {
                 case .success(let raw):
                     self.closeStreamingBubble()
@@ -233,9 +254,9 @@ final class AgentRuntime {
                         self.cancel()
                     } else {
                         self.appendAgent("⚠️ 生成失败：\(err.localizedDescription)")
+                        self.completeAction()
                     }
                 }
-                self.onUpdate?()
             }
         )
     }
@@ -258,11 +279,11 @@ final class AgentRuntime {
                 case .failure(let err):
                     self.appendAgent("⚠️ 打包失败：\(err.localizedDescription)")
                 }
-                self.onUpdate?()
+                self.completeAction()
             }
         } catch {
             appendAgent("⚠️ 解析失败：\(error.localizedDescription)")
-            onUpdate?()
+            completeAction()
         }
     }
 
@@ -324,8 +345,6 @@ final class AgentRuntime {
             onDelta: { [weak self] chunk in self?.streamAppend(bubbleIdx: nil, text: chunk) },
             completion: { [weak self] result in
                 guard let self = self else { return }
-                self.currentClient = nil
-                self.isBusy = false
                 switch result {
                 case .success(let raw):
                     self.closeStreamingBubble()
@@ -336,9 +355,9 @@ final class AgentRuntime {
                         self.cancel()
                     } else {
                         self.appendAgent("⚠️ 修改失败：\(err.localizedDescription)")
+                        self.completeAction()
                     }
                 }
-                self.onUpdate?()
             }
         )
     }
@@ -357,11 +376,11 @@ final class AgentRuntime {
                 case .failure(let err):
                     self.appendAgent("⚠️ 打包失败：\(err.localizedDescription)")
                 }
-                self.onUpdate?()
+                self.completeAction()
             }
         } catch {
             appendAgent("⚠️ 解析失败：\(error.localizedDescription)")
-            onUpdate?()
+            completeAction()
         }
     }
 
