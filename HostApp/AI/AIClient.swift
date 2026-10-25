@@ -7,6 +7,14 @@ final class AIClient: NSObject {
     struct Message: Codable {
         let role: String
         let content: String
+        /// 可选图像：base64 data URL（如 data:image/png;base64,xxx）。有值时按 OpenAI 多模态 content 数组发送
+        var imageBase64: String?
+
+        init(role: String, content: String, imageBase64: String? = nil) {
+            self.role = role
+            self.content = content
+            self.imageBase64 = imageBase64
+        }
     }
 
     enum AIError: LocalizedError {
@@ -161,7 +169,19 @@ final class AIClient: NSObject {
 
         var body: [String: Any] = [
             "model": AISettings.shared.model,
-            "messages": messages.map { ["role": $0.role, "content": $0.content] },
+            "messages": messages.map { msg in
+                if let img = msg.imageBase64, !img.isEmpty {
+                    // 多模态：文本 + 图片
+                    return [
+                        "role": msg.role,
+                        "content": [
+                            ["type": "text", "text": msg.content],
+                            ["type": "image_url", "image_url": ["url": img]]
+                        ]
+                    ]
+                }
+                return ["role": msg.role, "content": msg.content]
+            },
             "temperature": AISettings.shared.temperature,
             // 生成的小程序包含多个完整文件（index.html/icon.svg/多页），
             // 输出可能很长；给足上限防止截断导致 JSON 解析失败

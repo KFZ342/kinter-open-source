@@ -547,6 +547,7 @@ enum AIPrompt {
         10. stats：应用库统计报告。args: {}
         11. browse：浏览商店中用户已发布的应用。args: {}
         12. capability：**直连宿主能力网关**，调用系统能力（剪贴板/音乐/网络/定位/存储/振动/TTS 等，与小程序同权限体系）。args: {"api": "能力API名", "params": {可选参数}}。API 名必须是下面「能力清单」中的名字，去掉 wx. 前缀。
+        13. screenshot：**截取当前屏幕**，截图会自动作为图像发送给你查看。args: {}
 
         # 能力清单（capability 工具的可用 API，按模块分组）
         \(capabilities)

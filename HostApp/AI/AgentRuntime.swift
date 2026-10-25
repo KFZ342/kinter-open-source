@@ -68,6 +68,11 @@ final class AgentRuntime {
     /// 工具内部 LLM 生成进度（generate/iterate）
     private var generateBytes = 0
     private var lastProgressFlush = 0
+    /// 待发送给 LLM 的屏幕截图（base64 data URL + 保存路径）
+    private var pendingScreenshot: (base64: String, path: String)?
+    /// 本轮请求是否带图（用于视觉不支持时的降级重试）
+    private var lastRequestHadImage = false
+    private var visionRetried = false
     /// 忙时排队的待处理消息（处理完上一条自动接上，不再吞消息）
     private var pendingQueue: [String] = []
     /// Agent 循环最大轮数（防死循环）
@@ -203,6 +208,11 @@ final class AgentRuntime {
                 case .failure(let err):
                     if case AIClient.AIError.cancelled = err {
                         self.cancel()
+                    } else if self.lastRequestHadImage && !self.visionRetried {
+                        // 模型可能不支持视觉：降级为不带图重试一次（截图信息以文本保留）
+                        self.visionRetried = true
+                        self.appendAgent("⚠️ 当前模型不支持看图，已跳过截图，继续为你处理。")
+                        self.startAgent(round: round)
                     } else {
                         self.appendAgent("⚠️ 请求失败：\(err.localizedDescription)")
                         self.completeAction()
@@ -232,6 +242,17 @@ final class AgentRuntime {
                                                         boundName: boundApp?.name,
                                                         capabilities: capabilitiesText())
                             + toolHistoryText()))
+        // 屏幕截图：作为多模态 user 消息注入（AI 可以"看到"当前屏幕）
+        if let shot = pendingScreenshot {
+            let name = (shot.path as NSString).lastPathComponent
+            msgs.append(.init(role: "user",
+                              content: "这是刚刚截取的屏幕截图「\(name)」，请仔细查看屏幕内容，并基于它回答用户。",
+                              imageBase64: shot.base64))
+            pendingScreenshot = nil
+            lastRequestHadImage = true
+        } else {
+            lastRequestHadImage = false
+        }
         for m in messages {
             if m.isStreaming || m.isToolCallFrame { continue }
             switch m.role {
@@ -315,6 +336,8 @@ final class AgentRuntime {
             let api = (args["api"] as? String) ?? (args["name"] as? String) ?? ""
             let params = (args["params"] as? [String: Any]) ?? [:]
             runCapabilityTool(api: api, params: params, round: round)
+        case "screenshot":
+            runScreenshotTool(round: round)
         default:
             feedBack(ToolResult(tool: tool, input: tool,
                                 summary: "未知工具「\(tool)」，请只从提供的工具中选择",
@@ -862,6 +885,50 @@ final class AgentRuntime {
                                              card: nil), round: round)
                 }
             }
+        }
+    }
+
+    /// screenshot：截取当前屏幕，保存 PNG 并作为视觉输入发送给 AI
+    private func runScreenshotTool(round: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            guard let img = Self.captureScreen(),
+                  let data = img.pngData() else {
+                self.feedBack(ToolResult(tool: "screenshot", input: "",
+                                         summary: "截屏失败：无法捕获当前屏幕",
+                                         card: nil), round: round)
+                return
+            }
+            let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("Screenshots", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let file = dir.appendingPathComponent("agent_\(Int(Date().timeIntervalSince1970)).png")
+            try? data.write(to: file)
+            let kb = data.count / 1024
+            self.pendingScreenshot = (base64: "data:image/png;base64," + data.base64EncodedString(),
+                                      path: file.path)
+            self.visionRetried = false
+            self.feedBack(ToolResult(
+                tool: "screenshot", input: "",
+                summary: "已截取当前屏幕，正在作为图像输入发送给 AI 查看（保存：\(file.lastPathComponent)，\(kb) KB）。",
+                card: AgentCard(type: "screenshot",
+                                title: "屏幕截图",
+                                subtitle: "\(kb) KB · 已发送给 AI",
+                                summary: "截图已保存到 \(file.lastPathComponent)，正在作为视觉输入交给 AI 查看。",
+                                detail: "📸 **屏幕截图已获取**\n\n- 保存位置：`\(file.path)`\n- 大小：\(kb) KB\n- 状态：已作为视觉输入加入下一轮对话，AI 将描述它看到的内容。")), round: round)
+        }
+    }
+
+    /// 捕获宿主 App 当前窗口画面（App 内截图，无需系统权限）
+    private static func captureScreen() -> UIImage? {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
+        else { return nil }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(bounds: window.bounds, format: format)
+        return renderer.image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
         }
     }
 
