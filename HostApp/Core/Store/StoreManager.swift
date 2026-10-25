@@ -216,6 +216,16 @@ final class StoreManager {
         var req = URLRequest(url: url)
         req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         req.timeoutInterval = 60
+        // 付费应用下载必须登录（服务端校验已购）；免费应用无需 token
+        if let price = app.price, price > 0 {
+            guard let token = AuthStore.shared.accessToken else {
+                DispatchQueue.main.async {
+                    completion(.failure(StoreError.loginRequiredForPurchase))
+                }
+                return
+            }
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
@@ -227,8 +237,25 @@ final class StoreManager {
                 DispatchQueue.main.async { completion(.failure(err)) }
                 return
             }
-            guard let http = resp as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode),
+            guard let http = resp as? HTTPURLResponse else {
+                DispatchQueue.main.async { completion(.failure(StoreError.downloadFailed)) }
+                return
+            }
+            // 付费应用下载鉴权：401 = 未登录/凭据失效，403 = 未购买
+            if http.statusCode == 401 {
+                DispatchQueue.main.async {
+                    completion(.failure(StoreError.loginRequiredForPurchase))
+                }
+                return
+            }
+            if http.statusCode == 403 {
+                let price = app.price ?? 0
+                DispatchQueue.main.async {
+                    completion(.failure(StoreError.requiresPurchase(price: price)))
+                }
+                return
+            }
+            guard (200...299).contains(http.statusCode),
                   let tmp = tmpURL else {
                 DispatchQueue.main.async { completion(.failure(StoreError.downloadFailed)) }
                 return
@@ -304,6 +331,7 @@ enum StoreError: LocalizedError {
     case downloadFailed
     case checksumMismatch
     case requiresPurchase(price: Double)
+    case loginRequiredForPurchase
 
     var errorDescription: String? {
         switch self {
@@ -315,6 +343,8 @@ enum StoreError: LocalizedError {
         case .checksumMismatch:    return "文件校验失败，可能被篡改"
         case .requiresPurchase(let price):
             return String(format: "这是付费小程序（¥%.2f），购买后才能安装", price)
+        case .loginRequiredForPurchase:
+            return "付费应用需要登录账号后才能下载"
         }
     }
 }

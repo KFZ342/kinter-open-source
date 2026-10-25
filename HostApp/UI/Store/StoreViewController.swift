@@ -171,15 +171,36 @@ extension StoreViewController: UITableViewDataSource, UITableViewDelegate {
         present(alert, animated: true)
     }
 
-    /// 购买并安装：记录已购凭据 + 平台 7% 抽成结算流水，然后安装。
-    /// 真实 Apple IAP / Advanced Commerce API 接入后，此处的 markPurchased
-    /// 将改为 StoreKit 购买成功回调触发。
+    /// 购买并安装：未登录先提示登录；登录后调服务端购买（记录到账号），
+    /// 成功后登记 7% 平台抽成结算流水并安装。
     private func purchaseAndInstall(_ app: StoreApp) {
         guard let price = app.price, price > 0 else { doInstall(app); return }
-        PurchaseManager.shared.markPurchased(appId: app.appId, price: price)
-        PurchaseManager.shared.logSettlement(appId: app.appId, price: price)
-        HostPopup.toast(String(format: "购买成功（平台抽成 7%%）", price))
-        doInstall(app)
+
+        // 付费应用必须登录才能购买
+        guard AuthStore.shared.accessToken != nil else {
+            HostPopup.modal(title: "需要登录",
+                            content: "付费应用必须登录账号后才能购买和下载。\n请在设置 → 账号里登录。",
+                            confirmText: "去登录",
+                            cancelText: "取消") { [weak self] confirmed in
+                if confirmed {
+                    self?.navigationController?.pushViewController(AccountViewController(), animated: true)
+                }
+            }
+            return
+        }
+
+        PurchaseManager.shared.purchase(appId: app.appId, price: price) { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success:
+                HostPopup.toast(String(format: "购买成功，正在下载…", price))
+                self.doInstall(app)
+            case .failure(let err):
+                HostPopup.modal(title: "购买失败",
+                                content: err.localizedDescription,
+                                confirmText: "知道了", cancelText: nil) { _ in }
+            }
+        }
     }
 
     private func doInstall(_ app: StoreApp) {

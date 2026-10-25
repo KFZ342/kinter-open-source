@@ -164,6 +164,8 @@ final class KinterAuthManager {
                         let wrapper = try JSONDecoder().decode(LoginResponse.self, from: data)
                         AuthStore.shared.accessToken = wrapper.token
                         AuthStore.shared.cachedUser = wrapper.user
+                        // 同步服务端已购列表（恢复跨设备/重装购买记录）
+                        PurchaseManager.shared.fetchOwned()
                         completion(.success(wrapper.user))
                     } catch {
                         completion(.failure(AuthError.serverError("响应解析失败")))
