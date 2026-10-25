@@ -158,8 +158,19 @@ extension AgentChatViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: AgentBubbleCell.reuseID, for: indexPath) as! AgentBubbleCell
+        cell.onCardTap = { [weak self] card in
+            self?.showCardDetail(card)
+        }
         cell.configure(message: runtime.messages[indexPath.row])
         return cell
+    }
+
+    /// 点击卡片 → 详情页（Markdown 渲染）
+    private func showCardDetail(_ card: AgentRuntime.AgentCard) {
+        let vc = AgentCardDetailViewController(card: card)
+        let nav = UINavigationController(rootViewController: vc)
+        nav.modalPresentationStyle = .formSheet
+        present(nav, animated: true)
     }
 }
 
@@ -179,10 +190,13 @@ final class AgentBubbleCell: UITableViewCell {
 
     private let bubble = UIView()
     private let label = UILabel()
+    private let cardView = AgentCardView()
     private var leftAnchorCon: NSLayoutConstraint!
     private var rightAnchorCon: NSLayoutConstraint!
     private var minLeftCon: NSLayoutConstraint!
     private var maxRightCon: NSLayoutConstraint!
+    /// 卡片点击回调
+    var onCardTap: ((AgentRuntime.AgentCard) -> Void)?
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -194,6 +208,10 @@ final class AgentBubbleCell: UITableViewCell {
         label.lineBreakMode = .byWordWrapping
         label.translatesAutoresizingMaskIntoConstraints = false
         bubble.addSubview(label)
+
+        cardView.translatesAutoresizingMaskIntoConstraints = false
+        cardView.isHidden = true
+        bubble.addSubview(cardView)
 
         bubble.layer.cornerRadius = 14
         bubble.layer.cornerCurve = .continuous
@@ -208,19 +226,41 @@ final class AgentBubbleCell: UITableViewCell {
         NSLayoutConstraint.activate([
             bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
             bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
-            bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.8),
+            bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.88),
 
             label.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
             label.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
             label.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
-            label.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8)
+            label.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
+
+            cardView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 8),
+            cardView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -8),
+            cardView.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
+            cardView.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8)
         ])
+
+        cardView.onTap = { [weak self] in
+            guard let card = self?.currentCard else { return }
+            self?.onCardTap?(card)
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
+    private var currentCard: AgentRuntime.AgentCard?
+
     func configure(message: AgentRuntime.ChatMessage) {
-        label.text = message.text + (message.isStreaming ? "▋" : "")
+        currentCard = message.card
+        if let card = message.card {
+            label.isHidden = true
+            cardView.isHidden = false
+            cardView.configure(card: card)
+        } else {
+            cardView.isHidden = true
+            label.isHidden = false
+            label.text = message.text + (message.isStreaming ? "▋" : "")
+            label.attributedText = (message.text + (message.isStreaming ? "▋" : "")).markdownRendered
+        }
         if message.role == "user" {
             bubble.backgroundColor = .systemBlue
             label.textColor = .white
@@ -236,5 +276,156 @@ final class AgentBubbleCell: UITableViewCell {
             rightAnchorCon.isActive = false
             minLeftCon.isActive = false
         }
+    }
+}
+
+/// 工具执行结果卡片（点击查看详情）
+final class AgentCardView: UIView {
+    private let iconLabel = UILabel()
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let summaryLabel = UILabel()
+    private let detailHint = UILabel()
+    var onTap: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .secondarySystemBackground
+        layer.cornerRadius = 12
+        layer.cornerCurve = .continuous
+        isUserInteractionEnabled = true
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
+
+        iconLabel.font = .systemFont(ofSize: 30)
+        iconLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconLabel)
+
+        titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+        titleLabel.numberOfLines = 1
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(titleLabel)
+
+        subtitleLabel.font = .systemFont(ofSize: 12)
+        subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.numberOfLines = 1
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(subtitleLabel)
+
+        summaryLabel.font = .systemFont(ofSize: 13)
+        summaryLabel.textColor = .label
+        summaryLabel.numberOfLines = 3
+        summaryLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(summaryLabel)
+
+        detailHint.text = "点击查看详细信息  ›"
+        detailHint.font = .systemFont(ofSize: 12, weight: .medium)
+        detailHint.textColor = .systemBlue
+        detailHint.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(detailHint)
+
+        NSLayoutConstraint.activate([
+            iconLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            iconLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            iconLabel.widthAnchor.constraint(equalToConstant: 36),
+            iconLabel.heightAnchor.constraint(equalToConstant: 36),
+
+            titleLabel.leadingAnchor.constraint(equalTo: iconLabel.trailingAnchor, constant: 10),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+
+            subtitleLabel.leadingAnchor.constraint(equalTo: iconLabel.trailingAnchor, constant: 10),
+            subtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+
+            summaryLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            summaryLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            summaryLabel.topAnchor.constraint(equalTo: iconLabel.bottomAnchor, constant: 8),
+
+            detailHint.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            detailHint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            detailHint.topAnchor.constraint(equalTo: summaryLabel.bottomAnchor, constant: 8),
+            detailHint.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10)
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(card: AgentRuntime.AgentCard) {
+        switch card.type {
+        case "generate", "iterate": iconLabel.text = "🛠"
+        case "install":             iconLabel.text = "📦"
+        case "publish":             iconLabel.text = "🚀"
+        case "list":                iconLabel.text = "📱"
+        case "delete":              iconLabel.text = "🗑"
+        default:                    iconLabel.text = "🤖"
+        }
+        titleLabel.text = card.title
+        subtitleLabel.text = card.subtitle
+        summaryLabel.text = card.summary
+    }
+
+    @objc private func tapped() { onTap?() }
+}
+
+/// 卡片详情页（Markdown 渲染）
+final class AgentCardDetailViewController: UIViewController {
+    private let card: AgentRuntime.AgentCard
+    private let textView = UITextView()
+
+    init(card: AgentRuntime.AgentCard) {
+        self.card = card
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = card.type == "list" ? "我的小程序" : card.title
+        view.backgroundColor = .systemBackground
+
+        let closeBtn = UIBarButtonItem(barButtonSystemItem: .close, target: self,
+                                       action: #selector(closeTapped))
+        let copyBtn = UIBarButtonItem(image: UIImage(systemName: "doc.on.doc"),
+                                      style: .plain, target: self,
+                                      action: #selector(copyTapped))
+        navigationItem.leftBarButtonItem = closeBtn
+        navigationItem.rightBarButtonItem = copyBtn
+
+        textView.isEditable = false
+        textView.font = .systemFont(ofSize: 15)
+        textView.contentInset = UIEdgeInsets(top: 16, left: 16, bottom: 32, right: 16)
+        textView.textContainerInset = .zero
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(textView)
+        NSLayoutConstraint.activate([
+            textView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            textView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            textView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+
+        textView.attributedText = card.detail.markdownRendered
+    }
+
+    @objc private func closeTapped() { dismiss(animated: true) }
+
+    @objc private func copyTapped() {
+        UIPasteboard.general.string = card.detail
+        let alert = UIAlertController(title: "已复制", message: "详细信息已复制到剪贴板", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "好", style: .default))
+        present(alert, animated: true)
+    }
+}
+
+// MARK: - Markdown 渲染（系统内置解析，失败回退纯文本）
+
+extension String {
+    /// 用系统 Markdown 解析渲染为 NSAttributedString
+    var markdownRendered: NSAttributedString {
+        if let md = try? AttributedString(markdown: self, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            return NSAttributedString(md)
+        }
+        return NSAttributedString(string: self)
     }
 }

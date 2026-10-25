@@ -7,10 +7,20 @@ final class AgentRuntime {
 
     // MARK: - 会话消息
 
+    /// 工具执行结果卡片（点击可查看详细信息）
+    struct AgentCard {
+        let type: String      // generate / iterate / install / publish / list / delete / open
+        let title: String     // 卡片标题（如应用名）
+        let subtitle: String  // 副标题（版本/价格等）
+        let summary: String   // 卡片正文摘要（支持 Markdown）
+        let detail: String    // 详情（点击展开，支持 Markdown）
+    }
+
     struct ChatMessage {
         let role: String        // user / agent / system
         var text: String
         var isStreaming: Bool   // 是否正在流式输出
+        var card: AgentCard?    // 工具执行结果卡片（有值则 UI 渲染成卡片）
     }
 
     // MARK: - 意图（规则路由结果）
@@ -270,12 +280,28 @@ final class AgentRuntime {
                 case .success(let dir):
                     self.generated = app
                     self.generatedDir = dir
-                    self.appendAgent("✅ 已生成「\(app.name)」（v\(app.version)）\n"
-                        + "\(app.description)\n\n"
-                        + "接下来你可以：\n"
-                        + "  1. “安装它”\n"
-                        + "  2. “修改成…”（继续改）\n"
-                        + "  3. “发布，价格 6 元”")
+                    let filesList = app.files.keys.sorted()
+                        .map { "`\($0)` · \(String(app.files[$0]?.count ?? 0)) 字符" }
+                        .joined(separator: "\n")
+                    let caps = app.capabilities.isEmpty ? "无" : app.capabilities.keys.sorted().joined(separator: "、")
+                    let detail = """
+                    ## \(app.name) v\(app.version)
+
+                    > \(app.description)
+
+                    - **分类**：\(app.category)
+                    - **appId**：`\(app.appId)`
+                    - **能力**：\(caps)
+
+                    ### 📄 文件清单
+                    \(filesList)
+                    """
+                    self.appendAgent("✅ 已生成「\(app.name)」，随时可以安装或继续修改。",
+                                     card: AgentCard(type: "generate",
+                                                     title: app.name,
+                                                     subtitle: "v\(app.version) · \(app.category)",
+                                                     summary: "\(app.description)\n\n生成完成，可“安装它”或继续“修改成…”。",
+                                                     detail: detail))
                 case .failure(let err):
                     self.appendAgent("⚠️ 打包失败：\(err.localizedDescription)")
                 }
@@ -371,8 +397,25 @@ final class AgentRuntime {
                 case .success(let dir):
                     self.generated = app
                     self.generatedDir = dir
-                    self.appendAgent("✅ 已按你的要求修改「\(app.name)」。\n\n"
-                        + "要“安装”覆盖原应用，或“发布”到商店吗？")
+                    let filesList = app.files.keys.sorted()
+                        .map { "`\($0)` · \(String(app.files[$0]?.count ?? 0)) 字符" }
+                        .joined(separator: "\n")
+                    let detail = """
+                    ## \(app.name) v\(app.version)（已修改）
+
+                    > \(app.description)
+
+                    - **appId**：`\(app.appId)`（保持不变）
+
+                    ### 📄 当前文件清单
+                    \(filesList)
+                    """
+                    self.appendAgent("✅ 已按你的要求修改「\(app.name)」（v\(app.version)）。",
+                                     card: AgentCard(type: "iterate",
+                                                     title: app.name,
+                                                     subtitle: "v\(app.version) · 已修改",
+                                                     summary: "修改完成，可“安装”覆盖或“发布”到商店。",
+                                                     detail: detail))
                 case .failure(let err):
                     self.appendAgent("⚠️ 打包失败：\(err.localizedDescription)")
                 }
@@ -394,8 +437,12 @@ final class AgentRuntime {
         }
         do {
             try install(from: app, sourceDir: dir)
-            appendAgent("📦 已安装到应用库：「\(app.name)」。\n\n"
-                + "可以“打开它”，或“发布，价格 6 元”上架到商店。")
+            appendAgent("📦 已安装「\(app.name)」，可以打开或发布。",
+                        card: AgentCard(type: "install",
+                                        title: app.name,
+                                        subtitle: "v\(app.version) · 已安装",
+                                        summary: "已进入应用库，可“打开它”或“发布，价格 6 元”。",
+                                        detail: "## \(app.name) v\(app.version)\n\n已安装到应用库 ✅\n\n- **appId**：`\(app.appId)`\n- **分类**：\(app.category)\n- **能力**：\(app.capabilities.isEmpty ? "无" : app.capabilities.keys.sorted().joined(separator: "、"))"))
         } catch {
             appendAgent("⚠️ 安装失败：\(error.localizedDescription)")
         }
@@ -427,7 +474,22 @@ final class AgentRuntime {
             switch result {
             case .success(let pub):
                 let priceText = pub.price > 0 ? String(format: "售价 ¥%.2f（平台抽成 7%%）", pub.price) : "免费"
-                self.appendAgent("🚀 已发布「\(pub.name)」，\(priceText)。\n源地址：\(pub.sourceURL)\n已复制到剪贴板。")
+                let detail = """
+                ## 🚀 已发布 · \(pub.name)
+
+                - **售价**：\(priceText)
+                - **版本**：v\(pub.version)
+                - **appId**：`\(pub.appId)`
+
+                ### 🔗 源地址（已复制到剪贴板）
+                `\(pub.sourceURL)`
+                """
+                self.appendAgent("🚀 已发布「\(pub.name)」，\(priceText)。源地址已复制。",
+                                 card: AgentCard(type: "publish",
+                                                 title: pub.name,
+                                                 subtitle: priceText,
+                                                 summary: "已上架商店，源地址已复制到剪贴板。",
+                                                 detail: detail))
                 UIPasteboard.general.string = pub.sourceURL
             case .failure(let err):
                 self.appendAgent("⚠️ 发布失败：\(err.localizedDescription)")
@@ -449,8 +511,22 @@ final class AgentRuntime {
 
     private func runList() {
         let list = installedListText()
-        appendAgent(list.isEmpty ? "应用库还是空的。对我说“做一个XX小程序”开始吧。"
-                                 : "📱 你当前有这些小程序：\n\(list)")
+        if list.isEmpty {
+            appendAgent("应用库还是空的。对我说“做一个XX小程序”开始吧。")
+        } else {
+            let apps = AppLibrary.shared.apps
+            let detail = apps.map { app in
+                let price = app.price ?? 0
+                let priceText = price > 0 ? String(format: "¥%.2f", price) : "免费"
+                return "### \(app.name) v\(app.version)\n\n- **appId**：`\(app.appId)`\n- **分类**：\(app.category)\n- **售价**：\(priceText)\n- **来源**：\(app.isAIGenerated ? "AI 生成" : "导入")"
+            }.joined(separator: "\n\n")
+            appendAgent("📱 你当前有 \(apps.count) 个小程序：\n\(list)",
+                        card: AgentCard(type: "list",
+                                        title: "我的小程序",
+                                        subtitle: "\(apps.count) 个",
+                                        summary: list,
+                                        detail: detail))
+        }
         onUpdate?()
     }
 
@@ -462,7 +538,12 @@ final class AgentRuntime {
         }
         AppLibrary.shared.remove(appId: appId)
         NotificationCenter.default.post(name: .appLibraryDidChange, object: nil)
-        appendAgent("🗑 已删除「\(app.name)」。")
+        appendAgent("🗑 已删除「\(app.name)」。",
+                    card: AgentCard(type: "delete",
+                                    title: app.name,
+                                    subtitle: "已删除",
+                                    summary: "「\(app.name)」已从应用库移除。",
+                                    detail: "## 🗑 已删除\n\n`\(app.name)`（v\(app.version)）已从应用库移除。"))
         onUpdate?()
     }
 
@@ -582,7 +663,7 @@ final class AgentRuntime {
         onUpdate?()
     }
 
-    private func appendAgent(_ text: String) {
-        messages.append(ChatMessage(role: "agent", text: text, isStreaming: false))
+    private func appendAgent(_ text: String, card: AgentCard? = nil) {
+        messages.append(ChatMessage(role: "agent", text: text, isStreaming: false, card: card))
     }
 }
