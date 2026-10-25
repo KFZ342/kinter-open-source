@@ -12,6 +12,7 @@
 		0929967ADD679951406EA3EB /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42A0354E132CBA4EF68B59B /* StoreManager.swift */; };
 		11E3D6C1214BAF6CBC99B3D4 /* LibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDE39D2266B1D1A9558419E /* LibraryViewController.swift */; };
 		11E90237FB1A6EA9341E60B4 /* LocationWatchProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D7C0E6C95513564B688EEE /* LocationWatchProvider.swift */; };
+		18F05D8CC6D96D0F459096B6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C3060895C8A35FA45D96D5A0 /* PrivacyInfo.xcprivacy */; };
 		197B0BCA061A0A2F378137A1 /* MiniAppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AF342EBE4FA6017D61CAC5 /* MiniAppLauncher.swift */; };
 		1B1E148E55AD0F75AD650722 /* PackageInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9296E6FF14BA7BED8097ECA3 /* PackageInstaller.swift */; };
 		1B55DB7838321CB2055DFDA3 /* MiniAppWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFBB13032917C857CCD90CB0 /* MiniAppWebView.swift */; };
@@ -236,6 +237,7 @@
 		BC4E94952D130E9B04B23DD3 /* KinterActivityWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KinterActivityWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BEA09359F052DBB93BAC3B09 /* PrintProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrintProvider.swift; sourceTree = "<group>"; };
 		C20D64E338D4FCCB314996D2 /* NetworkProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkProvider.swift; sourceTree = "<group>"; };
+		C3060895C8A35FA45D96D5A0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		C3F6836BEF62E75F1E4216C1 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		C4CE08AAF7946C7F3055D4C5 /* CapabilityRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapabilityRegistry.swift; sourceTree = "<group>"; };
 		C64D01F84D239C49CDFFB185 /* WebClipGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebClipGenerator.swift; sourceTree = "<group>"; };
@@ -370,6 +372,7 @@
 				0F932336EBBCE2AF5C14D2D7 /* AppDelegate.swift */,
 				C3F6836BEF62E75F1E4216C1 /* index.html */,
 				51167FFCD5D9C8A85DE3AD70 /* manifest.json */,
+				C3060895C8A35FA45D96D5A0 /* PrivacyInfo.xcprivacy */,
 				873C960830019B3EA3E9BE3C /* SceneDelegate.swift */,
 			);
 			path = App;
@@ -698,6 +701,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CFAB6B353AE4E8AB86EDE469 /* Assets.xcassets in Resources */,
+				18F05D8CC6D96D0F459096B6 /* PrivacyInfo.xcprivacy in Resources */,
 				D8BFE26223E1F6520C081D9A /* index.html in Resources */,
 				686DB87278BE8D8AD6610EE5 /* ktml.js in Resources */,
 				4D1F1380CE6B25CEBC356456 /* manifest.json in Resources */,
