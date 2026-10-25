@@ -8,15 +8,15 @@ final class AgentRuntime {
     // MARK: - 会话消息
 
     /// 工具执行结果卡片（点击可查看详细信息）
-    struct AgentCard {
-        let type: String      // generate / iterate / install / publish / list / delete / open / export / qr / stats / browse
+    struct AgentCard: Codable {
+        let type: String      // generate / iterate / install / publish / list / delete / open / export / qr / stats / browse / capability
         let title: String     // 卡片标题（如应用名）
         let subtitle: String  // 副标题（版本/价格等）
         let summary: String   // 卡片正文摘要（支持 Markdown）
         let detail: String    // 详情（点击展开，支持 Markdown）
     }
 
-    struct ChatMessage {
+    struct ChatMessage: Codable {
         let role: String        // user / agent / tool
         var text: String
         var isStreaming: Bool   // 是否正在流式输出
@@ -58,20 +58,23 @@ final class AgentRuntime {
     /// UI 回调：有新消息/状态变化
     var onUpdate: (() -> Void)?
     /// UI 回调：需要打开某个小程序（由宿主 UI 调 MiniAppLauncher）
-    var onOpenApp: ((InstalledApp) -> Void)?
-    /// 流式输出回调（追加文本，UI 刷新对应气泡）
+    var onOpenApp: ((InstalledApp) -> Void)?    /// 流式输出回调（追加文本，UI 刷新对应气泡）
     var onStream: ((String) -> Void)?
+    /// 工具进度回调（generate/iterate 内部再调 LLM 时，报告生成进度避免误以为卡住）
+    var onToolProgress: ((String) -> Void)?
 
     private var currentClient: AIClient?
     private var lastPrompt = ""
+    /// 工具内部 LLM 生成进度（generate/iterate）
+    private var generateBytes = 0
+    private var lastProgressFlush = 0
     /// 忙时排队的待处理消息（处理完上一条自动接上，不再吞消息）
     private var pendingQueue: [String] = []
     /// Agent 循环最大轮数（防死循环）
     private let maxAgentRounds = 6
 
     /// Agent 专属能力网关（与小程序同权限体系，可直连调用全部 wx.* 能力）
-    private lazy var agentGateway: CapabilityGateway = {
-        let g = CapabilityGateway()
+    private lazy var agentGateway: CapabilityGateway = {        let g = CapabilityGateway()
         var caps: [String: MiniAppManifest.CapabilityDecl] = [:]
         for (name, level) in CapabilityRegistry.shared.allCapabilities() {
             caps[name] = MiniAppManifest.CapabilityDecl(level: level.rawValue, reason: "Agent 直连", scope: nil)
@@ -98,6 +101,49 @@ final class AgentRuntime {
         messages = [
             ChatMessage(role: "agent", text: opener, isStreaming: false)
         ]
+    }
+
+    // MARK: - 对话持久化（本地保存/恢复）
+
+    /// 历史对话保存路径（沙盒 Documents/agent_history.json）
+    static var historyFileURL: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("agent_history.json")
+    }
+
+    /// 保存当前对话到本地（剔除流式中/进行中的临时状态）
+    func saveHistory() {
+        guard let url = Self.historyFileURL else { return }
+        let snapshot = messages.filter { !$0.isStreaming }
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// 从本地恢复历史对话；成功则替换当前消息（含默认开场白）
+    /// - Returns: 恢复的消息数（0 = 无历史）
+    @discardableResult
+    func loadHistory() -> Int {
+        guard let url = Self.historyFileURL,
+              let data = try? Data(contentsOf: url),
+              let saved = try? JSONDecoder().decode([ChatMessage].self, from: data),
+              !saved.isEmpty else { return 0 }
+        messages = saved
+        onUpdate?()
+        return saved.count
+    }
+
+    /// 清空本地历史与当前消息
+    func clearHistory() {
+        messages = [ChatMessage(role: "agent", text: "历史对话已清空。", isStreaming: false)]
+        if let url = Self.historyFileURL { try? FileManager.default.removeItem(at: url) }
+        onUpdate?()
+    }
+
+    /// 更新最后一条工具调用帧的文案（UI 进度展示用）
+    func updateToolFrameText(_ text: String) {
+        if let idx = messages.lastIndex(where: { $0.isToolCallFrame }) {
+            messages[idx].text = text
+        }
     }
 
     // MARK: - 发送（进入 Agent Loop）
@@ -173,6 +219,7 @@ final class AgentRuntime {
                                     text: "工具「\(result.tool)」执行结果：\(result.summary)",
                                     isStreaming: false,
                                     card: result.card))
+        saveHistory()
         onUpdate?()
         startAgent(round: round + 1)
     }
@@ -288,6 +335,8 @@ final class AgentRuntime {
     /// generate：内部调 LLM 生成小程序代码包
     private func runGenerateTool(prompt: String, round: Int) {
         isBusy = true
+        generateBytes = 0
+        lastProgressFlush = 0
         let client = AIClient()
         currentClient = client
         client.chatStream(
@@ -296,7 +345,15 @@ final class AgentRuntime {
                 .init(role: "user", content: AIPrompt.user(prompt))
             ],
             onReasoning: { _ in },
-            onDelta: { _ in },
+            onDelta: { [weak self] chunk in
+                guard let self = self else { return }
+                // 生成进度反馈：累计字符数，节流回调状态行，避免用户误以为卡住
+                self.generateBytes += chunk.count
+                if self.generateBytes % 200 < chunk.count || self.lastProgressFlush < 1 {
+                    self.onToolProgress?("正在生成小程序代码…已输出 \(self.generateBytes) 字符")
+                    self.lastProgressFlush += 1
+                }
+            },
             completion: { [weak self] result in
                 guard let self = self else { return }
                 switch result {
@@ -363,6 +420,8 @@ final class AgentRuntime {
 
     /// iterate：内部调 LLM 修改代码
     private func runIterateTool(instruction: String, round: Int) {
+        generateBytes = 0
+        lastProgressFlush = 0
         let targetApp: InstalledApp?
         let files: [String: String]
         let originalPrompt: String
@@ -411,7 +470,14 @@ final class AgentRuntime {
                 ))
             ],
             onReasoning: { _ in },
-            onDelta: { _ in },
+            onDelta: { [weak self] chunk in
+                guard let self = self else { return }
+                self.generateBytes += chunk.count
+                if self.generateBytes % 300 < chunk.count || self.lastProgressFlush < 1 {
+                    self.onToolProgress?("正在修改「\(appId)」…已处理 \(self.generateBytes) 字符")
+                    self.lastProgressFlush += 1
+                }
+            },
             completion: { [weak self] result in
                 guard let self = self else { return }
                 switch result {
@@ -818,6 +884,7 @@ final class AgentRuntime {
     private func completeAction() {
         isBusy = false
         currentClient = nil
+        saveHistory()
         if !pendingQueue.isEmpty {
             let next = pendingQueue.removeFirst()
             lastPrompt = next
@@ -960,5 +1027,6 @@ final class AgentRuntime {
 
     private func appendAgent(_ text: String, card: AgentCard? = nil) {
         messages.append(ChatMessage(role: "agent", text: text, isStreaming: false, card: card))
+        saveHistory()
     }
 }

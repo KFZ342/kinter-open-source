@@ -16,6 +16,7 @@ final class AIClient: NSObject {
         case emptyResponse
         case parseFailed(String)
         case cancelled
+        case timeout
 
         var errorDescription: String? {
             switch self {
@@ -25,6 +26,7 @@ final class AIClient: NSObject {
             case .emptyResponse:        return "模型返回为空"
             case .parseFailed(let s):   return "响应解析失败: \(s)"
             case .cancelled:            return "已取消"
+            case .timeout:              return "生成超时（90 秒无响应），已中断，可重试"
             }
         }
     }
@@ -43,6 +45,12 @@ final class AIClient: NSObject {
     private var errorBody = Data()
     private var isSSE = true
     private var rawStreamBody = Data()
+    /// 空闲超时保护：流式期间连续 idleTimeout 秒无任何数据则主动中断，避免永久卡住
+    private let idleTimeout: TimeInterval = 90
+    private var lastDataTime: TimeInterval = 0
+    private var idleTimer: Timer?
+    /// 是否由空闲超时强制中断（区分用户取消）
+    private var timeoutForced = false
 
     func cancel() {
         task?.cancel()
@@ -123,6 +131,19 @@ final class AIClient: NSObject {
         self.session = s
         let t = s.dataTask(with: req)
         self.task = t
+
+        // 空闲超时看门狗：每 2s 检查一次，连续无数据超限则强制中断
+        self.lastDataTime = Date().timeIntervalSince1970
+        self.timeoutForced = false
+        self.idleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.session != nil else { return }
+            let idle = Date().timeIntervalSince1970 - self.lastDataTime
+            if idle > self.idleTimeout {
+                print("[AIClient] idle timeout (\(Int(idle))s no data), force interrupt")
+                self.timeoutForced = true
+                self.task?.cancel()
+            }
+        }
         t.resume()
     }
 
@@ -181,6 +202,8 @@ extension AIClient: URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        // 收到任何数据都重置空闲计时
+        lastDataTime = Date().timeIntervalSince1970
         // 非 200 时把 body 攒起来，最后报错
         if httpStatusCode != 0 && httpStatusCode != 200 {
             errorBody.append(data)
@@ -206,6 +229,10 @@ extension AIClient: URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         DispatchQueue.main.async {
+            if self.timeoutForced {
+                self.finish(.failure(AIError.timeout))
+                return
+            }
             if let err = error as NSError?, err.code == NSURLErrorCancelled {
                 self.finish(.failure(AIError.cancelled))
                 return
@@ -287,6 +314,8 @@ extension AIClient: URLSessionDataDelegate {
     }
 
     private func finish(_ result: Result<String, Error>) {
+        idleTimer?.invalidate()
+        idleTimer = nil
         session?.invalidateAndCancel()
         session = nil
         task = nil

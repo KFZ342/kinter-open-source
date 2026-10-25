@@ -26,6 +26,9 @@ final class AgentChatViewController: UIViewController {
         title = isIterate ? "AI 修改" : "AI 助手"
         view.backgroundColor = .systemGroupedBackground
 
+        // 恢复本地历史对话（有历史则替换默认开场白）
+        runtime.loadHistory()
+
         // 消息列表
         table.dataSource = self
         table.delegate = self
@@ -112,6 +115,11 @@ final class AgentChatViewController: UIViewController {
         runtime.onOpenApp = { [weak self] app in
             guard let self = self else { return }
             MiniAppLauncher.open(app: app, from: self)
+        }
+        runtime.onToolProgress = { [weak self] text in
+            guard let self = self else { return }
+            self.runtime.updateToolFrameText("🔧 \(text)")
+            self.refreshTable()
         }
         runtime.onPresent = { [weak self] vc in
             guard let self = self else { return }
