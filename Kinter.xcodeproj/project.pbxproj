@@ -52,6 +52,7 @@
 		686DB87278BE8D8AD6610EE5 /* ktml.js in Resources */ = {isa = PBXBuildFile; fileRef = 9BF7DE1179E6DD8C3C3111F5 /* ktml.js */; };
 		6A014FB303F8F32E1F5952A4 /* SavePhotoProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787C5FFFD4607B0A9964A848 /* SavePhotoProvider.swift */; };
 		6F02C227D63A00D93355AD2B /* GitHubAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DAE13F2708E55EEF77A4AD /* GitHubAPI.swift */; };
+		6F14DFB49A072C8D7244F2E9 /* KeepAliveAudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 618D5B66FDCCAE6C071F52DC /* KeepAliveAudioPlayer.swift */; };
 		7715878459B5F6BA4C502A60 /* ZipWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0EDFDD60C2C85FD70D8F46 /* ZipWriter.swift */; };
 		7796B6A75CE6B94BA4BFC929 /* NetworkWatchProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88100DA01D0697762D69E37 /* NetworkWatchProvider.swift */; };
 		7844D135E21F8AD4132ECF25 /* UIViewController+SafelyPresent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1858C7C8F7B0BEC32DED8855 /* UIViewController+SafelyPresent.swift */; };
@@ -97,6 +98,7 @@
 		D0F7C59836C18BE2376C99AF /* BridgeMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502BE4B3BFE3BD1A3158A358 /* BridgeMessageHandler.swift */; };
 		D21C9AF53471C8214DCDA4DD /* PermissionCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385A89F1EDB492842EAC5F9B /* PermissionCatalog.swift */; };
 		D440251705F843A744D8EF98 /* ImportViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B0AC4469C41D5514B65046 /* ImportViewController.swift */; };
+		D692B31A9B8D3873B67469C1 /* silence.wav in Resources */ = {isa = PBXBuildFile; fileRef = B380D8CA3FB464EBA3B52353 /* silence.wav */; };
 		D6CC8A6D01C1F0DA39BE5BAF /* AIModelSettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7139BB1BA7E3B1399921BF80 /* AIModelSettingsViewController.swift */; };
 		D7421450EE8870B6CAAE6005 /* GatewayError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325018E2E5994952FDA17CB0 /* GatewayError.swift */; };
 		D75CA1E23621FCDB705376FC /* BiometricProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E75992BFAB93C4971093125 /* BiometricProvider.swift */; };
@@ -196,6 +198,7 @@
 		51167FFCD5D9C8A85DE3AD70 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = manifest.json; sourceTree = "<group>"; };
 		5480C01DC4052AA1D8A898D7 /* ClipboardProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardProvider.swift; sourceTree = "<group>"; };
 		574C347E6A5DE1AED3057E3C /* AISettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettings.swift; sourceTree = "<group>"; };
+		618D5B66FDCCAE6C071F52DC /* KeepAliveAudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepAliveAudioPlayer.swift; sourceTree = "<group>"; };
 		6461D3741B1CE73994AC99CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		678C7B5AF115D1E29966EB6C /* wx.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = wx.js; sourceTree = "<group>"; };
 		68C7196D857EA111DCBA396A /* RootTabController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabController.swift; sourceTree = "<group>"; };
@@ -235,6 +238,7 @@
 		AFBB13032917C857CCD90CB0 /* MiniAppWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniAppWebView.swift; sourceTree = "<group>"; };
 		B05FE9D2EDCF5AFC86071FFD /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
 		B32520AA486BE9CF1CEF80E6 /* CapabilityGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapabilityGateway.swift; sourceTree = "<group>"; };
+		B380D8CA3FB464EBA3B52353 /* silence.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = silence.wav; sourceTree = "<group>"; };
 		B42A0354E132CBA4EF68B59B /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		B53DC22CA0EE017DC8A4E71E /* MultiTaskContainerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiTaskContainerController.swift; sourceTree = "<group>"; };
 		B86F2204493B924CF1E6A88B /* LiveActivityProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityProvider.swift; sourceTree = "<group>"; };
@@ -492,6 +496,7 @@
 		A259D1044CCFADBD506C4B5C /* Runtime */ = {
 			isa = PBXGroup;
 			children = (
+				618D5B66FDCCAE6C071F52DC /* KeepAliveAudioPlayer.swift */,
 				A15E256494C64306C0C6449C /* Gateway */,
 				9A3FBC40822E23409ABAE1A2 /* Render */,
 				CAFE2A233E1BAFCE913BB9FF /* Support */,
@@ -575,6 +580,7 @@
 			isa = PBXGroup;
 			children = (
 				6461D3741B1CE73994AC99CA /* Assets.xcassets */,
+				B380D8CA3FB464EBA3B52353 /* silence.wav */,
 				3252B432A7A8EBD612C856CF /* testmusic.mp3 */,
 			);
 			path = Resources;
@@ -725,6 +731,7 @@
 				D8BFE26223E1F6520C081D9A /* index.html in Resources */,
 				686DB87278BE8D8AD6610EE5 /* ktml.js in Resources */,
 				4D1F1380CE6B25CEBC356456 /* manifest.json in Resources */,
+				D692B31A9B8D3873B67469C1 /* silence.wav in Resources */,
 				DA756566CDB8EA22DC927269 /* testmusic.mp3 in Resources */,
 				DD53FCA8F1A37147E6D14851 /* wx.js in Resources */,
 			);
@@ -784,6 +791,7 @@
 				D440251705F843A744D8EF98 /* ImportViewController.swift in Sources */,
 				DA4E6AB1784B4E3C47BB833E /* InstalledApp.swift in Sources */,
 				3095C30D4F5083B2DF039D07 /* KTMLCompiler.swift in Sources */,
+				6F14DFB49A072C8D7244F2E9 /* KeepAliveAudioPlayer.swift in Sources */,
 				53D03D6BCF089B6E94AA3656 /* KinterActivityAttributes.swift in Sources */,
 				DBFB35DA8A7AC5A4D1832947 /* KinterAuthManager.swift in Sources */,
 				BFFE5D79F3C7D798D57AC417 /* KinterShortcuts.swift in Sources */,
