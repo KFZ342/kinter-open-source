@@ -198,8 +198,17 @@ final class StoreManager {
 
     // MARK: - 下载与安装
 
-    /// 下载 ZIP 并安装。校验 SHA256。
+    /// 下载 ZIP 并安装。校验 SHA256。付费小程序需先购买（PurchaseManager 校验）。
     func downloadAndInstall(_ app: StoreApp, completion: @escaping (Result<InstalledApp, Error>) -> Void) {
+        // 付费门：付费小程序未购买则拦截
+        if let price = app.price, price > 0,
+           !PurchaseManager.shared.isPurchased(appId: app.appId, price: price) {
+            DispatchQueue.main.async {
+                completion(.failure(StoreError.requiresPurchase(price: price)))
+            }
+            return
+        }
+
         guard let url = Self.resolveURL(app.downloadURL) else {
             completion(.failure(StoreError.invalidURL))
             return
@@ -255,10 +264,17 @@ final class StoreManager {
                     overwrite: true,
                     category: app.category ?? "未分类"
                 )
+                // 合并付费信息（manifest 可能没声明，以商店条目为准）
+                var installed = result.app
+                if let price = app.price, price > 0 {
+                    installed.price = price
+                    installed.paid = PurchaseManager.shared.isPurchased(appId: app.appId, price: price)
+                }
+                AppLibrary.shared.add(installed)   // add 本身是 upsert 语义，覆盖无价格记录
                 try? FileManager.default.removeItem(at: dest)
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(name: .appLibraryDidChange, object: nil)
-                    completion(.success(result.app))
+                    completion(.success(installed))
                 }
             } catch {
                 try? FileManager.default.removeItem(at: dest)
@@ -287,6 +303,7 @@ enum StoreError: LocalizedError {
     case parseFailed(String)
     case downloadFailed
     case checksumMismatch
+    case requiresPurchase(price: Double)
 
     var errorDescription: String? {
         switch self {
@@ -296,6 +313,8 @@ enum StoreError: LocalizedError {
         case .parseFailed(let s):  return "源格式错误: \(s)"
         case .downloadFailed:      return "下载失败"
         case .checksumMismatch:    return "文件校验失败，可能被篡改"
+        case .requiresPurchase(let price):
+            return String(format: "这是付费小程序（¥%.2f），购买后才能安装", price)
         }
     }
 }

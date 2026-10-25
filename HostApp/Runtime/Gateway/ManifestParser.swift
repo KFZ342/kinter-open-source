@@ -20,6 +20,8 @@ struct MiniAppManifest: Codable {
     var window: Window?
     /// 图标文件名（相对包根目录），如 "icon.png"
     var icon: String?
+    /// 售价（元）。nil / 0 / 缺省 = 免费；>0 = 付费小程序
+    var price: Double?
 
     func declares(_ capability: String) -> Bool {
         guard let capabilities = capabilities else { return false }

@@ -16,6 +16,8 @@ final class AIGenerateViewController: UIViewController {
     private let publishBtn = UIButton(type: .system)
     private let discardBtn = UIButton(type: .system)
     private let sourceLabel = UILabel()
+    private let priceField = UITextField()
+    private let priceRow = UIStackView()
 
     private var generated: AIGenerator.GeneratedApp?
     private var generatedDir: URL?
@@ -161,6 +163,26 @@ final class AIGenerateViewController: UIViewController {
         buttons.translatesAutoresizingMaskIntoConstraints = false
         resultCard.addSubview(buttons)
 
+        // 价格输入行（发布付费小程序用；0 = 免费）
+        let priceLabel = UILabel()
+        priceLabel.text = "售价(元)"
+        priceLabel.font = .systemFont(ofSize: 14, weight: .medium)
+        priceField.placeholder = "0 = 免费"
+        priceField.keyboardType = .decimalPad
+        priceField.text = "0"
+        priceField.textAlignment = .right
+        priceField.font = .systemFont(ofSize: 14)
+        priceField.borderStyle = .roundedRect
+        priceRow.axis = .horizontal
+        priceRow.spacing = 10
+        priceRow.distribution = .fillProportionally
+        priceRow.translatesAutoresizingMaskIntoConstraints = false
+        priceRow.addArrangedSubview(priceLabel)
+        priceRow.addArrangedSubview(priceField)
+        priceRow.isHidden = true
+        priceField.widthAnchor.constraint(equalToConstant: 100).isActive = true
+        resultCard.addSubview(priceRow)
+
         // 发布按钮（安装后显示）
         publishBtn.setTitle("发布到我的商店", for: .normal)
         publishBtn.setTitleColor(.white, for: .normal)
@@ -201,7 +223,11 @@ final class AIGenerateViewController: UIViewController {
             resultLabel.leadingAnchor.constraint(equalTo: resultCard.leadingAnchor, constant: 16),
             resultLabel.trailingAnchor.constraint(equalTo: resultCard.trailingAnchor, constant: -16),
 
-            sourceLabel.topAnchor.constraint(equalTo: resultLabel.bottomAnchor, constant: 12),
+            priceRow.topAnchor.constraint(equalTo: resultLabel.bottomAnchor, constant: 12),
+            priceRow.leadingAnchor.constraint(equalTo: resultCard.leadingAnchor, constant: 16),
+            priceRow.trailingAnchor.constraint(equalTo: resultCard.trailingAnchor, constant: -16),
+
+            sourceLabel.topAnchor.constraint(equalTo: priceRow.bottomAnchor, constant: 12),
             sourceLabel.leadingAnchor.constraint(equalTo: resultCard.leadingAnchor, constant: 16),
             sourceLabel.trailingAnchor.constraint(equalTo: resultCard.trailingAnchor, constant: -16),
 
@@ -528,13 +554,21 @@ final class AIGenerateViewController: UIViewController {
             return
         }
 
+        // 读取售价（元），无效输入按免费处理
+        let priceText = priceField.text?.trimmingCharacters(in: .whitespaces) ?? ""
+        let price = Double(priceText) ?? 0
+        if price < 0 {
+            HostPopup.toast("价格不能为负数")
+            return
+        }
+
         // 按钮变 loading
         publishBtn.isEnabled = false
         publishBtn.setTitle("发布中…", for: .normal)
         publishBtn.alpha = 0.6
         _ = dir
 
-        StorePublisher.shared.publish(app: installed) { [weak self] result in
+        StorePublisher.shared.publish(app: installed, price: price) { [weak self] result in
             guard let self = self else { return }
             self.publishBtn.isEnabled = true
             self.publishBtn.setTitle("发布到我的商店", for: .normal)
@@ -543,9 +577,10 @@ final class AIGenerateViewController: UIViewController {
             switch result {
             case .success(let pub):
                 self.publishBtn.isHidden = true
+                self.priceRow.isHidden = true
                 self.sourceLabel.isHidden = false
                 self.sourceLabel.text = """
-                ✓ 已发布
+                ✓ 已发布\(pub.price > 0 ? String(format: "（售价 ¥%.2f，平台抽成 7%%）", pub.price) : "（免费）")
                 源地址：\(pub.sourceURL)
                 """
                 // 复制源地址到剪贴板
@@ -585,9 +620,10 @@ final class AIGenerateViewController: UIViewController {
         do {
             try installFromDirectory(app: app, sourceDir: dir)
             HostPopup.toast("已导入应用库")
-            // 显示发布按钮，保留卡片让用户可以继续发布
+            // 显示发布按钮与价格输入，保留卡片让用户可以继续发布
             installBtn.isHidden = true
             publishBtn.isHidden = false
+            priceRow.isHidden = false
         } catch {
             HostPopup.modal(title: "导入失败", content: error.localizedDescription,
                             confirmText: "知道了", cancelText: nil) { _ in }

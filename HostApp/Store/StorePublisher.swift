@@ -29,11 +29,14 @@ final class StorePublisher {
         let name: String
         let version: String
         let sourceURL: String
+        /// 发布时声明的售价（元）。0 = 免费
+        let price: Double
     }
 
     // MARK: - 发布
 
     func publish(app: InstalledApp,
+                 price: Double = 0,
                  completion: @escaping (Result<PublishResult, Error>) -> Void) {
         guard let token = AuthStore.shared.accessToken,
               let user = KinterAuthManager.shared.restoreSession() else {
@@ -59,12 +62,13 @@ final class StorePublisher {
         let zipData = ZipWriter.build(entries: entries)
         NSLog("[Publish] zip built, %d bytes, %d files", zipData.count, entries.count)
 
-        // 3. 构造 multipart
+        // 3. 构造 multipart（附带价格字段，服务端写进商店索引）
         let boundary = "----KinterBoundary\(UUID().uuidString)"
         let body = buildMultipart(
             boundary: boundary,
             filename: "\(app.appId).zip",
-            data: zipData
+            data: zipData,
+            price: price
         )
 
         // 4. 发请求
@@ -97,8 +101,10 @@ final class StorePublisher {
                         let name = obj["name"] as? String ?? app.name
                         let version = obj["version"] as? String ?? app.version
                         let source = obj["sourceURL"] as? String ?? ""
+                        let price = (obj["price"] as? Double) ?? price
                         completion(.success(PublishResult(
-                            appId: appId, name: name, version: version, sourceURL: source
+                            appId: appId, name: name, version: version,
+                            sourceURL: source, price: price
                         )))
                     } catch {
                         completion(.failure(PublishError.parseFailed(error.localizedDescription)))
@@ -128,12 +134,16 @@ final class StorePublisher {
 
     // MARK: - multipart
 
-    private func buildMultipart(boundary: String, filename: String, data: Data) -> Data {
+    private func buildMultipart(boundary: String, filename: String, data: Data, price: Double) -> Data {
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: application/zip\r\n\r\n".data(using: .utf8)!)
         body.append(data)
+        // 价格字段（元，0 = 免费）
+        body.append("\r\n--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"price\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(price)".data(using: .utf8)!)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         return body
     }

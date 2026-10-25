@@ -68,6 +68,7 @@
 		96858EAF53A5CAE4BA5E3118 /* VideoRecordProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D88C66CCDE931C11B1180F /* VideoRecordProvider.swift */; };
 		97BD80574E0BED92BB1FB13D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F932336EBBCE2AF5C14D2D7 /* AppDelegate.swift */; };
 		97F3A1D5960786AB6305B27C /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFAB486C386678B10AE910E /* AppStore.swift */; };
+		98472BB7B481CD72E8EE69F1 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0B77D1BFC1E92190DE109E /* PurchaseManager.swift */; };
 		991F791BBA49C16B4C02B819 /* MultiTaskContainerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53DC22CA0EE017DC8A4E71E /* MultiTaskContainerController.swift */; };
 		9B9436004AEFE76741BE86BB /* PermissionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024DFDA4BD390A3FD1DAEFB6 /* PermissionPolicy.swift */; };
 		9FDD8DCA16EF536516F2C08C /* LiveActivityProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86F2204493B924CF1E6A88B /* LiveActivityProvider.swift */; };
@@ -158,6 +159,7 @@
 		07B0AC4469C41D5514B65046 /* ImportViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportViewController.swift; sourceTree = "<group>"; };
 		0A0F6AB50D5EA96956E2F001 /* LocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
 		0C64BA65DA4C06C0546D9703 /* StoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreModels.swift; sourceTree = "<group>"; };
+		0D0B77D1BFC1E92190DE109E /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseManager.swift; sourceTree = "<group>"; };
 		0E75992BFAB93C4971093125 /* BiometricProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricProvider.swift; sourceTree = "<group>"; };
 		0F932336EBBCE2AF5C14D2D7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		10741C4625E924ED89DDCA78 /* KinterActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KinterActivityWidget.swift; sourceTree = "<group>"; };
@@ -400,6 +402,7 @@
 		6EC98AFE0B1F907C57AE2828 /* Store */ = {
 			isa = PBXGroup;
 			children = (
+				0D0B77D1BFC1E92190DE109E /* PurchaseManager.swift */,
 				B42A0354E132CBA4EF68B59B /* StoreManager.swift */,
 				0C64BA65DA4C06C0546D9703 /* StoreModels.swift */,
 			);
@@ -793,6 +796,7 @@
 				9B9436004AEFE76741BE86BB /* PermissionPolicy.swift in Sources */,
 				6095B62C852008C6FF75A27B /* PhotoProvider.swift in Sources */,
 				2D287D25303938FC45C982CD /* PrintProvider.swift in Sources */,
+				98472BB7B481CD72E8EE69F1 /* PurchaseManager.swift in Sources */,
 				F7D6CF8829DA568A62339106 /* QRGenerateProvider.swift in Sources */,
 				E8C867FDE3EF23233F7BD319 /* QRScanProvider.swift in Sources */,
 				8A7B11677E1A2120A4EB50AD /* ReminderProvider.swift in Sources */,

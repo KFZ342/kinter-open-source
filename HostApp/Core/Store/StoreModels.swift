@@ -25,6 +25,10 @@ struct StoreApp: Codable, Identifiable {
     let size: Int?
     let sha256: String?
     let minHostVersion: String?
+    /// 售价（元）。nil / 0 = 免费；>0 = 付费小程序
+    let price: Double?
+    /// 货币代码，默认 CNY
+    let currency: String?
 
     var id: String { appId }
 }

@@ -91,6 +91,12 @@ def build_app(app_dir: Path):
     if has_icon:
         app['iconURL'] = f"{BASE_URL}/apps/{app_dir.name}/icon.png"
 
+    # 售价（元）：manifest.price > 0 才输出；缺省 = 免费
+    price = manifest.get('price')
+    if isinstance(price, (int, float)) and price > 0:
+        app['price'] = float(price)
+        app['currency'] = manifest.get('currency', 'CNY')
+
     print(f"  ✓ {name} v{version}  ({latest.stat().st_size} bytes, {len(zips)} 个版本)")
     return app
 

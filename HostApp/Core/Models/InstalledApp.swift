@@ -16,6 +16,10 @@ struct InstalledApp: Codable, Identifiable, Equatable {
     var isAIGenerated: Bool = false
     /// AI 生成时的原始描述，用于后续迭代
     var generationPrompt: String?
+    /// 售价（元）。nil / 0 = 免费小程序
+    var price: Double?
+    /// 是否已购买（付费小程序）。免费小程序恒为 true
+    var paid: Bool = true
 
     var id: String { appId }
 
@@ -66,7 +70,8 @@ struct InstalledApp: Codable, Identifiable, Equatable {
     init(appId: String, name: String, version: String, installedAt: Date,
          category: String, disabledCapabilities: Set<String>,
          iconFileName: String? = nil, isAIGenerated: Bool = false,
-         generationPrompt: String? = nil) {
+         generationPrompt: String? = nil, price: Double? = nil,
+         paid: Bool = true) {
         self.appId = appId
         self.name = name
         self.version = version
@@ -76,13 +81,15 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         self.iconFileName = iconFileName
         self.isAIGenerated = isAIGenerated
         self.generationPrompt = generationPrompt
+        self.price = price
+        self.paid = paid
     }
 
-    // 容错解码：旧 library.json 没有 isAIGenerated / generationPrompt 字段
+    // 容错解码：旧 library.json 没有 isAIGenerated / generationPrompt / price / paid 字段
     enum CodingKeys: String, CodingKey {
         case appId, name, version, installedAt, category
         case disabledCapabilities, iconFileName
-        case isAIGenerated, generationPrompt
+        case isAIGenerated, generationPrompt, price, paid
     }
 
     init(from decoder: Decoder) throws {
@@ -96,5 +103,7 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         iconFileName = try? c.decodeIfPresent(String.self, forKey: .iconFileName)
         isAIGenerated = (try? c.decode(Bool.self, forKey: .isAIGenerated)) ?? false
         generationPrompt = try? c.decodeIfPresent(String.self, forKey: .generationPrompt)
+        price = try? c.decodeIfPresent(Double.self, forKey: .price)
+        paid = (try? c.decode(Bool.self, forKey: .paid)) ?? (price == nil)
     }
 }

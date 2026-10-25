@@ -146,14 +146,40 @@ extension StoreViewController: UITableViewDataSource, UITableViewDelegate {
             msg += "\n已安装：\(installed!.version)"
         }
 
+        // 付费小程序：显示价格；未购买时提供购买入口
+        let isPaid = (app.price ?? 0) > 0
+        let owned = isPaid && PurchaseManager.shared.isPurchased(appId: app.appId, price: app.price)
+        if isPaid {
+            msg += String(format: "\n价格：¥%.2f", app.price ?? 0)
+        }
+
         let alert = UIAlertController(title: app.name,
                                       message: msg,
                                       preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-        alert.addAction(UIAlertAction(title: isUpdate ? "更新" : "安装", style: .default) { [weak self] _ in
-            self?.doInstall(app)
-        })
+        if isPaid && !owned {
+            // 付费且未购买 → 购买并安装
+            alert.addAction(UIAlertAction(title: String(format: "购买 ¥%.2f 并安装", app.price ?? 0),
+                                          style: .default) { [weak self] _ in
+                self?.purchaseAndInstall(app)
+            })
+        } else {
+            alert.addAction(UIAlertAction(title: isUpdate ? "更新" : "安装", style: .default) { [weak self] _ in
+                self?.doInstall(app)
+            })
+        }
         present(alert, animated: true)
+    }
+
+    /// 购买并安装：记录已购凭据 + 平台 7% 抽成结算流水，然后安装。
+    /// 真实 Apple IAP / Advanced Commerce API 接入后，此处的 markPurchased
+    /// 将改为 StoreKit 购买成功回调触发。
+    private func purchaseAndInstall(_ app: StoreApp) {
+        guard let price = app.price, price > 0 else { doInstall(app); return }
+        PurchaseManager.shared.markPurchased(appId: app.appId, price: price)
+        PurchaseManager.shared.logSettlement(appId: app.appId, price: price)
+        HostPopup.toast(String(format: "购买成功（平台抽成 7%%）", price))
+        doInstall(app)
     }
 
     private func doInstall(_ app: StoreApp) {
@@ -241,7 +267,18 @@ final class StoreAppCell: UITableViewCell {
     func configure(app: StoreApp) {
         nameLabel.text = app.name
         versionLabel.text = "v\(app.version)"
-        descLabel.text = app.subtitle ?? app.description ?? ""
+
+        // 付费小程序：描述行显示价格标签
+        let isPaid = (app.price ?? 0) > 0
+        if isPaid {
+            descLabel.text = String(format: "¥%.2f · %@",
+                                    app.price ?? 0,
+                                    app.subtitle ?? app.description ?? "")
+            descLabel.textColor = .systemOrange
+        } else {
+            descLabel.text = app.subtitle ?? app.description ?? ""
+            descLabel.textColor = .tertiaryLabel
+        }
 
         // 已安装状态
         if let installed = AppLibrary.shared.app(id: app.appId) {
@@ -252,6 +289,10 @@ final class StoreAppCell: UITableViewCell {
                 actionBtn.setImage(UIImage(systemName: "checkmark.circle.fill"), for: .normal)
                 actionBtn.tintColor = .systemGray
             }
+        } else if isPaid && !PurchaseManager.shared.isPurchased(appId: app.appId, price: app.price) {
+            // 付费未购买
+            actionBtn.setImage(UIImage(systemName: "dollarsign.circle"), for: .normal)
+            actionBtn.tintColor = .systemOrange
         } else {
             actionBtn.setImage(UIImage(systemName: "arrow.down.circle"), for: .normal)
             actionBtn.tintColor = .systemBlue
