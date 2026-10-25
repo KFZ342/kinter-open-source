@@ -10,6 +10,8 @@ final class AgentChatViewController: UIViewController {
     private let sendBtn = UIButton(type: .system)
     private let stopBtn = UIButton(type: .system)
     private let inputBar = UIView()
+    /// 流式输出节流刷新计时器（防止高频 reloadData 卡死主线程）
+    private var streamRefreshTimer: Timer?
 
     init(boundApp: InstalledApp? = nil) {
         runtime = AgentRuntime(boundApp: boundApp)
@@ -87,13 +89,25 @@ final class AgentChatViewController: UIViewController {
             stopBtn.heightAnchor.constraint(equalToConstant: 34)
         ])
 
-        // 运行时回调
+        // 运行时回调（流式输出时节流刷新，防止 AI 长代码输出把主线程刷死）
         runtime.onUpdate = { [weak self] in
             guard let self = self else { return }
-            self.table.reloadData()
-            self.scrollToBottom()
-            self.sendBtn.isHidden = self.runtime.isBusy
-            self.stopBtn.isHidden = !self.runtime.isBusy
+            let streaming = self.runtime.messages.contains { $0.isStreaming }
+            if streaming {
+                if self.streamRefreshTimer == nil {
+                    self.refreshTable()   // 流式第一帧立即刷
+                    let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
+                        self?.refreshTable()
+                    }
+                    timer.tolerance = 0.03
+                    RunLoop.main.add(timer, forMode: .common)
+                    self.streamRefreshTimer = timer
+                }
+            } else {
+                self.streamRefreshTimer?.invalidate()
+                self.streamRefreshTimer = nil
+                self.refreshTable()
+            }
         }
         runtime.onOpenApp = { [weak self] app in
             guard let self = self else { return }
@@ -121,6 +135,7 @@ final class AgentChatViewController: UIViewController {
     }
 
     deinit {
+        streamRefreshTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -134,6 +149,14 @@ final class AgentChatViewController: UIViewController {
 
     @objc private func stopTapped() {
         runtime.cancel()
+    }
+
+    private func refreshTable() {
+        guard viewIfLoaded?.window != nil else { return }
+        table.reloadData()
+        scrollToBottom(animated: false)
+        sendBtn.isHidden = runtime.isBusy
+        stopBtn.isHidden = !runtime.isBusy
     }
 
     private func scrollToBottom(animated: Bool = true) {
@@ -266,8 +289,14 @@ final class AgentBubbleCell: UITableViewCell {
         } else {
             cardView.isHidden = true
             label.isHidden = false
-            label.text = message.text + (message.isStreaming ? "▋" : "")
-            label.attributedText = (message.text + (message.isStreaming ? "▋" : "")).markdownRendered
+            if message.isStreaming {
+                // 流式输出中：纯文本渲染（Markdown 解析开销大，等输出完再做）
+                label.attributedText = nil
+                label.text = message.text + "▋"
+            } else {
+                label.text = nil
+                label.attributedText = message.text.markdownRendered
+            }
         }
         if message.role == "user" {
             bubble.backgroundColor = .systemBlue
