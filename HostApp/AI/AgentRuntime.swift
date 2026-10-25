@@ -33,15 +33,31 @@ final class AgentRuntime {
         case open(appId: String)
         case list
         case delete(appId: String)
+        case export(appId: String?)      // 导出/分享小程序包（zip）
+        case qr(text: String)            // 生成二维码
+        case stats                       // 应用库统计
+        case browse                      // 商店浏览（我的已发布）
         case help
         case chat(text: String)          // 非管理意图：正常聊天
         case needTarget(what: String)    // 需要指定目标小程序
+    }
+
+    /// 工具执行记录（回灌给 AI：后续对话能感知执行过什么）
+    struct ToolCallRecord {
+        let tool: String      // 工具名（generate/install/publish/...）
+        let input: String     // 输入摘要
+        let result: String    // 结果摘要
     }
 
     // MARK: - 状态
 
     private(set) var messages: [ChatMessage] = []
     private(set) var isBusy = false
+    /// 本会话工具执行记录（回灌 AI 上下文）
+    private(set) var toolHistory: [ToolCallRecord] = []
+
+    /// UI 回调：需要弹出一个视图控制器（导出分享面板 / 二维码预览）
+    var onPresent: ((UIViewController) -> Void)?
 
     /// 本轮生成的小程序（尚未安装/已安装都可操作）
     private(set) var generated: AIGenerator.GeneratedApp?
@@ -109,6 +125,14 @@ final class AgentRuntime {
             runList()
         case .delete(let appId):
             runDelete(appId: appId)
+        case .export(let appId):
+            runExport(appId: appId)
+        case .qr(let text):
+            runQR(text: text)
+        case .stats:
+            runStats()
+        case .browse:
+            runBrowse()
         case .needTarget(let what):
             appendAgent("需要告诉我操作哪个小程序。当前已装：\n" + installedListText() +
                         "\n\n或者先让我“生成一个小程序”。（你想\(what)）")
@@ -164,6 +188,26 @@ final class AgentRuntime {
             }
             return .needTarget(what: "打开")
         }
+        // 导出/打包/分享
+        if containsAny(text, ["导出", "打包", "下载", "备份", "导出到"]) {
+            return .export(appId: matchedInstalledAppID(text))
+        }
+        // 二维码
+        if containsAny(text, ["二维码", "扫码", "qr"]) {
+            let target = matchedInstalledAppID(text)
+            if let app = AppLibrary.shared.apps.first(where: { $0.appId == target ?? "" }) {
+                return .qr(text: "Kinter 小程序「\(app.name)」\nappId: \(app.appId)")
+            }
+            return .qr(text: text)
+        }
+        // 统计
+        if containsAny(text, ["统计", "数据报告", "有几个小程序", "分类分布", "库存"]) {
+            return .stats
+        }
+        // 商店/上架浏览
+        if containsAny(text, ["商店", "商城", "看看市场", "市场里", "已发布的应用", "我发布的"]) {
+            return .browse
+        }
         // 列表
         if containsAny(text, ["有哪些", "列表", "看看我的", "我的小程序", "查看应用", "几个小程序"]) {
             return .list
@@ -209,7 +253,9 @@ final class AgentRuntime {
         currentClient = client
         client.chatStream(
             messages: [
-                .init(role: "system", content: AIPrompt.chatSystem(installed: installedListText())),
+                .init(role: "system", content: AIPrompt.chatSystem(installed: installedListText())
+                    + toolHistoryText()
+                    + "\n\n# 可用工具\n" + AIPrompt.toolCatalog),
                 .init(role: "user", content: text)
             ],
             onReasoning: { [weak self] _ in self?.onUpdate?() },
@@ -245,7 +291,7 @@ final class AgentRuntime {
         currentClient = client
         client.chatStream(
             messages: [
-                .init(role: "system", content: AIPrompt.system),
+                .init(role: "system", content: AIPrompt.system + toolHistoryText() + "\n\n# 可用工具\n" + AIPrompt.toolCatalog),
                 .init(role: "user", content: AIPrompt.user(prompt))
             ],
             onReasoning: { [weak self] _ in self?.onUpdate?() },
@@ -302,6 +348,8 @@ final class AgentRuntime {
                                                      subtitle: "v\(app.version) · \(app.category)",
                                                      summary: "\(app.description)\n\n生成完成，可“安装它”或继续“修改成…”。",
                                                      detail: detail))
+                    self.recordTool(tool: "generate", input: prompt,
+                                    result: "生成了「\(app.name)」(v\(app.version), appId=\(app.appId), 分类=\(app.category), 文件=\(app.files.keys.count) 个)")
                 case .failure(let err):
                     self.appendAgent("⚠️ 打包失败：\(err.localizedDescription)")
                 }
@@ -365,7 +413,7 @@ final class AgentRuntime {
                     currentAppId: appId,
                     currentVersion: version,
                     currentFiles: files
-                ))
+                ) + toolHistoryText()),
             ],
             onReasoning: { [weak self] _ in self?.onUpdate?() },
             onDelta: { [weak self] chunk in self?.streamAppend(bubbleIdx: nil, text: chunk) },
@@ -416,6 +464,8 @@ final class AgentRuntime {
                                                      subtitle: "v\(app.version) · 已修改",
                                                      summary: "修改完成，可“安装”覆盖或“发布”到商店。",
                                                      detail: detail))
+                    self.recordTool(tool: "iterate", input: targetApp?.name ?? app.name,
+                                    result: "修改了「\(app.name)」到 v\(app.version)（appId=\(app.appId)）")
                 case .failure(let err):
                     self.appendAgent("⚠️ 打包失败：\(err.localizedDescription)")
                 }
@@ -443,6 +493,8 @@ final class AgentRuntime {
                                         subtitle: "v\(app.version) · 已安装",
                                         summary: "已进入应用库，可“打开它”或“发布，价格 6 元”。",
                                         detail: "## \(app.name) v\(app.version)\n\n已安装到应用库 ✅\n\n- **appId**：`\(app.appId)`\n- **分类**：\(app.category)\n- **能力**：\(app.capabilities.isEmpty ? "无" : app.capabilities.keys.sorted().joined(separator: "、"))"))
+            self.recordTool(tool: "install", input: app.name,
+                            result: "安装了「\(app.name)」v\(app.version) 到应用库")
         } catch {
             appendAgent("⚠️ 安装失败：\(error.localizedDescription)")
         }
@@ -490,6 +542,8 @@ final class AgentRuntime {
                                                  subtitle: priceText,
                                                  summary: "已上架商店，源地址已复制到剪贴板。",
                                                  detail: detail))
+                self.recordTool(tool: "publish", input: "价格 \(price)",
+                                result: "发布了「\(pub.name)」\(priceText)，源地址 \(pub.sourceURL)")
                 UIPasteboard.general.string = pub.sourceURL
             case .failure(let err):
                 self.appendAgent("⚠️ 发布失败：\(err.localizedDescription)")
@@ -526,6 +580,7 @@ final class AgentRuntime {
                                         subtitle: "\(apps.count) 个",
                                         summary: list,
                                         detail: detail))
+            recordTool(tool: "list", input: "", result: "应用库共 \(apps.count) 个：\(apps.map(\.name).joined(separator: "、"))")
         }
         onUpdate?()
     }
@@ -544,7 +599,210 @@ final class AgentRuntime {
                                     subtitle: "已删除",
                                     summary: "「\(app.name)」已从应用库移除。",
                                     detail: "## 🗑 已删除\n\n`\(app.name)`（v\(app.version)）已从应用库移除。"))
+        recordTool(tool: "delete", input: app.name, result: "删除了「\(app.name)」(v\(app.version))")
         onUpdate?()
+    }
+
+    // MARK: - 新工具：导出 / 二维码 / 统计 / 商店浏览
+
+    /// 导出：把小程序打包 zip 分享（系统分享面板）
+    private func runExport(appId: String?) {
+        let target = appId.flatMap { AppLibrary.shared.app(id: $0) }
+            ?? generated.flatMap { AppLibrary.shared.app(id: $0.appId) }
+            ?? boundApp
+        guard let app = target, let directory = resolveAppDirectory(app) else {
+            appendAgent("没有可导出的小程序。先“生成”并“安装”一个。")
+            onUpdate?()
+            return
+        }
+        do {
+            let entries = try loadZipEntries(from: directory)
+            let zipData = ZipWriter.build(entries: entries)
+            let tmp = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(app.name)-v\(app.version).zip")
+            try zipData.write(to: tmp)
+            let shareVC = UIActivityViewController(activityItems: [tmp], applicationActivities: nil)
+            if let popover = shareVC.popoverPresentationController {
+                popover.sourceView = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }.first?.keyWindow?.rootViewController?.view
+                popover.sourceRect = CGRect(x: 400, y: 400, width: 1, height: 1)
+            }
+            onPresent?(shareVC)
+            recordTool(tool: "export", input: app.name, result: "导出 \(app.name) v\(app.version)，\(entries.count) 个文件，\(zipData.count) 字节")
+            appendAgent("📦 已导出「\(app.name)」安装包（\(entries.count) 个文件），分享面板已弹出。",
+                        card: AgentCard(type: "export",
+                                        title: app.name,
+                                        subtitle: "v\(app.version) · 已导出",
+                                        summary: "安装包已生成并弹出分享面板，可直接发送给别人安装。",
+                                        detail: "## 📦 \(app.name) v\(app.version)\n\n已打包 \(entries.count) 个文件，\(zipData.count) 字节。\n\n可直接通过分享面板发送，对方导入即可运行。"))
+        } catch {
+            appendAgent("⚠️ 导出失败：\(error.localizedDescription)")
+        }
+        onUpdate?()
+    }
+
+    private func resolveAppDirectory(_ app: InstalledApp) -> URL? {
+        if let dir = generatedDir, generated?.appId == app.appId { return dir }
+        return app.directory
+    }
+
+    private func loadZipEntries(from dir: URL) throws -> [ZipWriter.Entry] {
+        var entries: [ZipWriter.Entry] = []
+        let fm = FileManager.default
+        guard let files = fm.enumerator(at: dir, includingPropertiesForKeys: nil) else { return [] }
+        for case let file as URL in files where !file.hasDirectoryPath {
+            let rel = file.path.replacingOccurrences(of: dir.path + "/", with: "")
+            let data = try Data(contentsOf: file)
+            entries.append(.init(path: rel, data: data))
+        }
+        return entries
+    }
+
+    /// 二维码：为文本生成二维码图片并弹出预览
+    private func runQR(text: String) {
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else {
+            appendAgent("⚠️ 当前设备不支持二维码生成。")
+            onUpdate?()
+            return
+        }
+        let clean = text.replacingOccurrences(of: "生成二维码", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let data = Data(clean.utf8)
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let ciImage = filter.outputImage else {
+            appendAgent("⚠️ 二维码生成失败。")
+            onUpdate?()
+            return
+        }
+        // 放大（原图太小）
+        let scale: CGFloat = 400 / ciImage.extent.width
+        let scaled = ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let image = UIImage(ciImage: scaled)
+
+        let preview = QRPreviewViewController(qrImage: image, content: clean)
+        let nav = UINavigationController(rootViewController: preview)
+        nav.modalPresentationStyle = .formSheet
+        onPresent?(nav)
+        recordTool(tool: "qr", input: clean, result: "为「\(clean)」生成了二维码")
+        appendAgent("🔳 二维码已生成，请扫码查看。",
+                    card: AgentCard(type: "qr",
+                                    title: "二维码",
+                                    subtitle: clean,
+                                    summary: "已生成二维码预览。",
+                                    detail: "## 🔳 二维码\n\n内容：\n\n`\(clean)`"))
+        onUpdate?()
+    }
+
+    /// 统计：应用库统计报告
+    private func runStats() {
+        let apps = AppLibrary.shared.apps
+        guard !apps.isEmpty else {
+            appendAgent("应用库还是空的，先“做一个XX小程序”吧。")
+            onUpdate?()
+            return
+        }
+        let total = apps.count
+        let aiCount = apps.filter { $0.isAIGenerated }.count
+        let importCount = total - aiCount
+        let categories = Dictionary(grouping: apps, by: { $0.category }).mapValues { $0.count }
+            .sorted { $0.value > $1.value }
+            .map { "- \($0.key)：\($0.value) 个" }.joined(separator: "\n")
+        let paidCount = apps.filter { ($0.price ?? 0) > 0 }.count
+        let detail = """
+        ## 📊 应用库统计
+
+        - **总数**：\(total) 个
+        - **AI 生成**：\(aiCount) 个
+        - **手动导入**：\(importCount) 个
+        - **已定价**：\(paidCount) 个
+
+        ### 分类分布
+        \(categories)
+        """
+        recordTool(tool: "stats", input: "", result: "共 \(total) 个应用：AI \(aiCount) / 导入 \(importCount) / 付费 \(paidCount)")
+        appendAgent("📊 统计完成，共 \(total) 个小程序。",
+                    card: AgentCard(type: "stats",
+                                    title: "应用库统计",
+                                    subtitle: "\(total) 个应用",
+                                    summary: "AI 生成 \(aiCount) · 导入 \(importCount) · 付费 \(paidCount)",
+                                    detail: detail))
+        onUpdate?()
+    }
+
+    /// 商店浏览：拉取我已发布的应用列表
+    private func runBrowse() {
+        guard let token = AuthStore.shared.accessToken else {
+            appendAgent("浏览商店需要先登录账号。打开「设置 → 账号」登录后再说“看看商店”。")
+            onUpdate?()
+            return
+        }
+        let baseURL = {
+            if let custom = AppSettings.shared.authServerURL, !custom.isEmpty {
+                return custom
+            }
+            return KinterAuthManager.defaultServerURL
+        }()
+        guard !baseURL.isEmpty else {
+            appendAgent("还没有配置服务器地址。打开「设置 → 账号」填写服务器。")
+            onUpdate?()
+            return
+        }
+        guard let base = URL(string: baseURL) else {
+            appendAgent("服务器地址无效，请到「设置 → 账号」检查。")
+            onUpdate?()
+            return
+        }
+        var req = URLRequest(url: base.appendingPathComponent("/api/apps/mine"))
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.timeoutInterval = 20
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let err = err {
+                    self.appendAgent("⚠️ 商店连接失败：\(err.localizedDescription)")
+                    self.onUpdate?()
+                    return
+                }
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let list = json["apps"] as? [[String: Any]], !list.isEmpty else {
+                    self.appendAgent("商店里还没有你发布的应用。对我说“发布，价格 6 元”试试。")
+                    self.onUpdate?()
+                    return
+                }
+                let rows = list.compactMap { item -> String? in
+                    guard let name = item["name"] as? String else { return nil }
+                    let price = (item["price"] as? Double) ?? 0
+                    let version = (item["version"] as? String) ?? "1.0.0"
+                    let priceText = price > 0 ? String(format: "¥%.2f", price) : "免费"
+                    return "### \(name) v\(version)\n\n- **售价**：\(priceText)\n- **下载**：\(item["downloadCount"] as? Int ?? 0) 次"
+                }
+                self.appendAgent("🏪 商店里你发布了 \(list.count) 个应用：\n\(rows.joined(separator: "\n\n"))",
+                                 card: AgentCard(type: "browse",
+                                                 title: "我的商店",
+                                                 subtitle: "\(list.count) 个已发布",
+                                                 summary: rows.joined(separator: "\n"),
+                                                 detail: rows.joined(separator: "\n\n")))
+                self.recordTool(tool: "browse", input: "", result: "商店里有 \(list.count) 个自己发布的应用")
+                self.onUpdate?()
+            }
+        }.resume()
+    }
+
+    /// 记录工具执行结果（回灌给 AI 上下文）
+    private func recordTool(tool: String, input: String, result: String) {
+        toolHistory.append(ToolCallRecord(tool: tool, input: input, result: result))
+        if toolHistory.count > 30 { toolHistory.removeFirst(toolHistory.count - 30) }
+    }
+
+    /// 工具历史文本（注入 LLM 上下文，让 AI 感知执行过的工具与结果）
+    func toolHistoryText() -> String {
+        guard !toolHistory.isEmpty else { return "" }
+        let rows = toolHistory.map { "- `\($0.tool)`(输入：\($0.input)) → \($0.result)" }
+            .joined(separator: "\n")
+        return "\n\n# 本会话已执行的工具记录（真实发生，可用于回答用户追问）\n\(rows)"
     }
 
     // MARK: - 工具方法
@@ -642,14 +900,18 @@ final class AgentRuntime {
     }
 
     private var helpText: String {
-        "我可以帮你管理小程序，试试这样说：\n\n"
-        + "• 生成：\"做一个番茄钟小程序，红色主题\"\n"
-        + "• 修改：\"把主题改成深色\" / \"加一个计时功能\"\n"
-        + "• 安装：\"安装它\"\n"
-        + "• 发布：\"发布到商店，价格 6 元\"\n"
-        + "• 打开：\"打开番茄钟\"\n"
-        + "• 列表：\"有哪些小程序\"\n"
-        + "• 删除：\"删除番茄钟\""
+        "我是你的小程序 AI 管家，一共有 **10 个工具**，试试这样说：\n\n"
+        + "🛠 **生成**：\"做一个番茄钟小程序，红色主题\"\n"
+        + "✏️ **修改**：\"把主题改成深色\" / \"加一个计时功能\"\n"
+        + "📦 **安装**：\"安装它\"\n"
+        + "🚀 **发布**：\"发布到商店，价格 6 元\"\n"
+        + "▶️ **打开**：\"打开番茄钟\"\n"
+        + "📱 **列表**：\"有哪些小程序\"\n"
+        + "🗑 **删除**：\"删除番茄钟\"\n"
+        + "💾 **导出**：\"导出番茄钟\"（打包 zip 分享给别人）\n"
+        + "🔳 **二维码**：\"给番茄钟生成二维码\"\n"
+        + "📊 **统计**：\"统计一下\"（应用库数据报告）\n"
+        + "🏪 **商店**：\"看看商店\"（我发布的应用）"
     }
 
     // MARK: - 消息工具

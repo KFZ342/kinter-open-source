@@ -99,6 +99,14 @@ final class AgentChatViewController: UIViewController {
             guard let self = self else { return }
             MiniAppLauncher.open(app: app, from: self)
         }
+        runtime.onPresent = { [weak self] vc in
+            guard let self = self else { return }
+            if let popover = vc.popoverPresentationController {
+                popover.sourceView = self.view
+                popover.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+            }
+            self.present(vc, animated: true)
+        }
 
         // 键盘监听（聊天气泡不被遮挡）
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)),
@@ -413,6 +421,83 @@ final class AgentCardDetailViewController: UIViewController {
     @objc private func copyTapped() {
         UIPasteboard.general.string = card.detail
         let alert = UIAlertController(title: "已复制", message: "详细信息已复制到剪贴板", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "好", style: .default))
+        present(alert, animated: true)
+    }
+}
+
+/// 二维码预览页
+final class QRPreviewViewController: UIViewController {
+    private let qrImage: UIImage
+    private let content: String
+
+    init(qrImage: UIImage, content: String) {
+        self.qrImage = qrImage
+        self.content = content
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        let closeBtn = UIBarButtonItem(barButtonSystemItem: .close, target: self,
+                                       action: #selector(closeTapped))
+        let copyBtn = UIBarButtonItem(image: UIImage(systemName: "doc.on.doc"),
+                                      style: .plain, target: self,
+                                      action: #selector(copyTapped))
+        navigationItem.leftBarButtonItem = closeBtn
+        navigationItem.rightBarButtonItem = copyBtn
+
+        let imageView = UIImageView(image: qrImage)
+        imageView.contentMode = .scaleAspectFit
+        imageView.layer.cornerRadius = 16
+        imageView.layer.cornerCurve = .continuous
+        imageView.layer.masksToBounds = true
+        imageView.backgroundColor = .white
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(imageView)
+
+        let hint = UILabel()
+        hint.text = "用手机相机扫一扫即可打开内容"
+        hint.font = .systemFont(ofSize: 13)
+        hint.textColor = .secondaryLabel
+        hint.textAlignment = .center
+        hint.numberOfLines = 0
+        hint.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(hint)
+
+        let contentLabel = UILabel()
+        contentLabel.text = content
+        contentLabel.font = .systemFont(ofSize: 14)
+        contentLabel.textColor = .label
+        contentLabel.textAlignment = .center
+        contentLabel.numberOfLines = 0
+        contentLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(contentLabel)
+
+        NSLayoutConstraint.activate([
+            imageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -40),
+            imageView.widthAnchor.constraint(equalToConstant: 300),
+            imageView.heightAnchor.constraint(equalToConstant: 300),
+
+            hint.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 20),
+            hint.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            hint.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+
+            contentLabel.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 10),
+            contentLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            contentLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32)
+        ])
+    }
+
+    @objc private func closeTapped() { dismiss(animated: true) }
+
+    @objc private func copyTapped() {
+        UIPasteboard.general.string = content
+        let alert = UIAlertController(title: "已复制", message: "二维码内容已复制到剪贴板", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "好", style: .default))
         present(alert, animated: true)
     }
