@@ -96,11 +96,16 @@ final class AgentRuntime {
 
     func cancel() {
         currentClient?.cancel()
-        if let idx = messages.lastIndex(where: { $0.role == "agent" && $0.isStreaming }) {
-            messages[idx].isStreaming = false
-        }
+        closeStreamingBubble()
         isBusy = false
         onUpdate?()
+    }
+
+    /// 关闭所有流式气泡（输出完成/取消时调用，避免 ▋ 光标残留）
+    private func closeStreamingBubble() {
+        for i in messages.indices where messages[i].role == "agent" && messages[i].isStreaming {
+            messages[i].isStreaming = false
+        }
     }
 
     // MARK: - 意图路由（规则版）
@@ -172,12 +177,13 @@ final class AgentRuntime {
                 .init(role: "system", content: AIPrompt.chatSystem(installed: installedListText())),
                 .init(role: "user", content: text)
             ],
-            onReasoning: { [weak self] _ in self?.streamAppend(bubbleIdx: nil, text: "") },
+            onReasoning: { [weak self] _ in self?.onUpdate?() },
             onDelta: { [weak self] chunk in self?.streamAppend(bubbleIdx: nil, text: chunk) },
             completion: { [weak self] result in
                 guard let self = self else { return }
                 self.currentClient = nil
                 self.isBusy = false
+                self.closeStreamingBubble()
                 switch result {
                 case .success:
                     break
@@ -209,11 +215,7 @@ final class AgentRuntime {
                 .init(role: "system", content: AIPrompt.system),
                 .init(role: "user", content: AIPrompt.user(prompt))
             ],
-            onReasoning: { [weak self] chunk in
-                guard let self = self else { return }
-                self.streamAppend(bubbleIdx: nil, text: "")
-                _ = chunk
-            },
+            onReasoning: { [weak self] _ in self?.onUpdate?() },
             onDelta: { [weak self] chunk in
                 self?.streamAppend(bubbleIdx: nil, text: chunk)
             },
@@ -223,8 +225,10 @@ final class AgentRuntime {
                 self.isBusy = false
                 switch result {
                 case .success(let raw):
+                    self.closeStreamingBubble()
                     self.handleGenerated(raw: raw, prompt: prompt)
                 case .failure(let err):
+                    self.closeStreamingBubble()
                     if case AIClient.AIError.cancelled = err {
                         self.cancel()
                     } else {
@@ -316,7 +320,7 @@ final class AgentRuntime {
                     currentFiles: files
                 ))
             ],
-            onReasoning: { [weak self] _ in self?.streamAppend(bubbleIdx: nil, text: "") },
+            onReasoning: { [weak self] _ in self?.onUpdate?() },
             onDelta: { [weak self] chunk in self?.streamAppend(bubbleIdx: nil, text: chunk) },
             completion: { [weak self] result in
                 guard let self = self else { return }
@@ -324,8 +328,10 @@ final class AgentRuntime {
                 self.isBusy = false
                 switch result {
                 case .success(let raw):
+                    self.closeStreamingBubble()
                     self.handleIterated(raw: raw, targetApp: targetApp)
                 case .failure(let err):
+                    self.closeStreamingBubble()
                     if case AIClient.AIError.cancelled = err {
                         self.cancel()
                     } else {

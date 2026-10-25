@@ -33,10 +33,19 @@ final class MiniAppWebView: UIView {
         func userContentController(_ ucc: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
             guard message.name == "jslog",
-                  let body = message.body as? [String: Any],
-                  let level = body["level"] as? String,
-                  let text = body["message"] as? String else { return }
-            owner?.onJavascriptLog?(level, text)
+                  let body = message.body as? [String: Any] else { return }
+            // 批量：[[level, message], ...]
+            if let batch = body["batch"] as? [[String]] {
+                for pair in batch where pair.count >= 2 {
+                    owner?.onJavascriptLog?(pair[0], pair[1])
+                }
+                return
+            }
+            // 兼容单条：{level, message}
+            if let level = body["level"] as? String,
+               let text = body["message"] as? String {
+                owner?.onJavascriptLog?(level, text)
+            }
         }
     }
 
@@ -129,11 +138,28 @@ final class MiniAppWebView: UIView {
                                               injectionTime: .atDocumentStart,
                                               forMainFrameOnly: true))
 
-        // 最后注入日志钩子：重写 console + 捕获未处理异常，上报到原生 jslog
+        // 最后注入日志钩子：重写 console + 捕获未处理异常，批量上报到原生 jslog
+        // （高频日志合并成批量 postMessage，避免 WebKit 消息过密丢失）
         let logHook = """
         (function () {
           if (window.__kinterLogInstalled) return;
           window.__kinterLogInstalled = true;
+
+          var pending = [];
+          var timer = null;
+          function flush() {
+            timer = null;
+            if (!pending.length) return;
+            var batch = pending;
+            pending = [];
+            try { webkit.messageHandlers.jslog.postMessage({ batch: batch }); } catch (e) {}
+          }
+          function send(level, message) {
+            pending.push([level, message]);
+            if (pending.length >= 64) { flush(); return; }
+            if (!timer) timer = setTimeout(flush, 16);
+          }
+
           function fmt(args) {
             return Array.prototype.map.call(args, function (a) {
               try {
@@ -144,11 +170,6 @@ final class MiniAppWebView: UIView {
                 return String(a);
               } catch (e) { return '[unserializable]'; }
             }).join(' ');
-          }
-          function send(level, message) {
-            try {
-              webkit.messageHandlers.jslog.postMessage({ level: level, message: message });
-            } catch (e) {}
           }
           ['log', 'info', 'warn', 'error', 'debug'].forEach(function (lv) {
             var orig = (typeof console[lv] === 'function') ? console[lv].bind(console) : function () {};
@@ -161,12 +182,15 @@ final class MiniAppWebView: UIView {
           });
           window.onerror = function (msg, src, line, col) {
             send('error', msg + ' @ ' + (src || '') + ':' + line + ':' + col);
+            flush();
           };
           window.addEventListener('unhandledrejection', function (e) {
             var r = e.reason;
             var m = (r && r.message) ? r.message : String(r);
             send('error', 'Unhandled rejection: ' + m);
+            flush();
           });
+          window.addEventListener('beforeunload', flush);
         })();
         """
         controller.addUserScript(WKUserScript(source: logHook,
