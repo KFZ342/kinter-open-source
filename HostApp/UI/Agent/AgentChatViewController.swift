@@ -532,14 +532,122 @@ final class QRPreviewViewController: UIViewController {
     }
 }
 
-// MARK: - Markdown 渲染（系统内置解析，失败回退纯文本）
+// MARK: - Markdown 渲染（完整块级解析 + 表格等宽对齐渲染，失败回退纯文本）
 
 extension String {
-    /// 用系统 Markdown 解析渲染为 NSAttributedString
+    /// 用系统 Markdown 解析渲染为 NSAttributedString。
+    /// 支持标题/列表/引用/代码块/行内样式；Markdown 表格（GitHub 语法）单独等宽对齐渲染。
     var markdownRendered: NSAttributedString {
-        if let md = try? AttributedString(markdown: self, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-            return NSAttributedString(md)
+        StringRenderer.markdown(self)
+    }
+}
+
+enum StringRenderer {
+    /// 完整 Markdown 渲染（含表格支持）
+    static func markdown(_ text: String) -> NSAttributedString {
+        let lines = text.components(separatedBy: "\n")
+        let out = NSMutableAttributedString()
+        var plain = ""
+
+        func flushPlain() {
+            if plain.isEmpty { return }
+            if let md = try? AttributedString(markdown: plain, options: .init(interpretedSyntax: .full)) {
+                out.append(NSAttributedString(md))
+            } else {
+                out.append(NSAttributedString(string: plain, attributes: [.font: UIFont.systemFont(ofSize: 15)]))
+            }
+            plain = ""
         }
-        return NSAttributedString(string: self)
+
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            if line.contains("|"), i + 1 < lines.count,
+               isSeparatorRow(lines[i + 1]) {
+                // 表格块：收集连续含 | 行
+                var block: [String] = []
+                var j = i
+                while j < lines.count && lines[j].contains("|") {
+                    block.append(lines[j])
+                    j += 1
+                }
+                flushPlain()
+                out.append(renderTable(block))
+                out.append(NSAttributedString(string: "\n"))
+                i = j
+                continue
+            }
+            plain += line + "\n"
+            i += 1
+        }
+        flushPlain()
+        return out
+    }
+
+    /// 判断是否为表格分隔行（|---|:---:|---|）
+    private static func isSeparatorRow(_ line: String) -> Bool {
+        var t = line.trimmingCharacters(in: .whitespaces)
+        if t.hasPrefix("|") { t.removeFirst() }
+        if t.hasSuffix("|") { t.removeLast() }
+        let cells = t.split(separator: "|")
+        return !cells.isEmpty && cells.allSatisfy { cell in
+            let c = cell.trimmingCharacters(in: .whitespaces)
+            return !c.isEmpty && c.allSatisfy { $0 == "-" || $0 == ":" }
+        }
+    }
+
+    /// 表格块 → 等宽字体对齐渲染（表头加粗 + 分隔线）
+    private static func renderTable(_ block: [String]) -> NSAttributedString {
+        var parsed: [[String]] = []
+        for line in block {
+            var t = line.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("|") { t.removeFirst() }
+            if t.hasSuffix("|") { t.removeLast() }
+            parsed.append(t.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) })
+        }
+        guard let sepIdx = parsed.firstIndex(where: { rows in
+            !rows.isEmpty && rows.allSatisfy { $0.allSatisfy { $0 == "-" || $0 == ":" } }
+        }), sepIdx > 0 else {
+            return NSAttributedString(string: block.joined(separator: "\n"),
+                                      attributes: [.font: UIFont.systemFont(ofSize: 15)])
+        }
+
+        let header = parsed[sepIdx - 1]
+        var dataRows: [[String]] = []
+        for (idx, row) in parsed.enumerated() where idx != sepIdx && idx != sepIdx - 1 {
+            dataRows.append(row)
+        }
+        let colCount = max(header.count, dataRows.map(\.count).max() ?? 0)
+        var colWidths = Array(repeating: 0, count: colCount)
+        for (idx, cell) in header.enumerated() where idx < colCount { colWidths[idx] = max(colWidths[idx], cell.count) }
+        for row in dataRows {
+            for (idx, cell) in row.enumerated() where idx < colCount { colWidths[idx] = max(colWidths[idx], cell.count) }
+        }
+
+        func pad(_ cell: String, _ width: Int) -> String {
+            cell + String(repeating: " ", count: max(0, width - cell.count))
+        }
+        func makeLine(_ row: [String]) -> String {
+            (0..<colCount).map { idx in
+                pad(idx < row.count ? row[idx] : "", colWidths[idx])
+            }.joined(separator: "  ")
+        }
+
+        let tableFont = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let headerFont = UIFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 4
+        paragraph.paragraphSpacing = 3
+
+        let attrs: [NSAttributedString.Key: Any] = [.font: tableFont, .foregroundColor: UIColor.label, .paragraphStyle: paragraph]
+        let headAttrs: [NSAttributedString.Key: Any] = [.font: headerFont, .foregroundColor: UIColor.label, .paragraphStyle: paragraph]
+        let out = NSMutableAttributedString()
+        out.append(NSAttributedString(string: makeLine(header), attributes: headAttrs))
+        out.append(NSAttributedString(string: "\n", attributes: headAttrs))
+        out.append(NSAttributedString(string: colWidths.map { String(repeating: "-", count: $0) }.joined(separator: "  "), attributes: attrs))
+        for row in dataRows {
+            out.append(NSAttributedString(string: "\n" + makeLine(row), attributes: attrs))
+        }
+        return out
     }
 }
