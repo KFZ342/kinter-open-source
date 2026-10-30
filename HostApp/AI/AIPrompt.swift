@@ -569,6 +569,8 @@ enum AIPrompt {
         3. **路径必须是绝对路径**（以 `/` 开头），否则直接报 invalid_params。
         4. **用完即释放**：Provider 已自动处理 handle 释放，你无需关心。
         5. **只在用户明确要求跨 App / 系统目录读写时使用**。普通文件操作用 wx.writeFile 即可，不要滥用越权能力。
+        6. **大小上限**：读取上限 32MB、写入上限 64MB、listDir/listTree 有条目与深度上限。
+           文件太大或枚举过多会返回错误/截断，不要硬试超大路径。
 
         可用方法：
         - `badQueryProbe`：args {path?} → {available, probePath, code?, reason, hint, degraded}

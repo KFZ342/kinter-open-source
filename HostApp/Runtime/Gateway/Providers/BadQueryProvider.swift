@@ -128,8 +128,14 @@ final class BadQueryProvider: CapabilityProvider {
                 let data = try Data(contentsOf: URL(fileURLWithPath: path))
                 let asText = (params["asText"] as? Bool) ?? false
                 var out: [String: Any] = ["path": path, "size": data.count]
-                if asText, let s = String(data: data, encoding: .utf8) {
-                    out["text"] = s
+                if asText {
+                    if let s = String(data: data, encoding: .utf8) {
+                        out["text"] = s
+                    } else {
+                        out["data"] = data.base64EncodedString()
+                        out["textDecoded"] = false
+                        out["note"] = "内容不是有效 UTF-8，已按 base64 返回"
+                    }
                 } else {
                     out["data"] = data.base64EncodedString()
                 }
@@ -332,6 +338,7 @@ final class BadQueryProvider: CapabilityProvider {
             completion(.success([
                 "available": true,
                 "probePath": probePath,
+                "code": 0,
                 "reason": "沙盒扩展获取成功",
                 "degraded": false
             ]))
