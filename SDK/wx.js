@@ -353,9 +353,12 @@
     // ===== 应用间调用 =====
     openApp: function (o) { return invoke('app', 'open', o); },
     canOpenApp: function (o) { return invoke('app', 'canOpen', o); },
-    // ===== Metal GPU 算力 =====
+    // ===== Metal GPU 多核并行算力 =====
     applyMetalFilter: function (o) { return invoke('metal', 'applyFilter', o); },
-    // ===== Metal GPU 算力 =====
+    convolveMetalImage: function (o) { return invoke('metal', 'convolve', o); },
+    batchResizeMetalImages: function (o) { return invoke('metal', 'batchResize', o); },
+    gpuReduce: function (o) { return invoke('metal', 'reduce', o); },
+    gpuMatMul: function (o) { return invoke('metal', 'matMul', o); },
     renderMetalFractal: function (o) { return invoke('metal', 'renderFractal', o); },
     getLaunchParams: function (o) { return invoke('app', 'getLaunchParams', o); },
 
