@@ -44,6 +44,7 @@ final class MiniAppRunnerController: UIViewController {
         // 接收 JS 原始日志
         web.onJavascriptLog = { [weak self] level, message in
             DispatchQueue.main.async {
+                if level == "error" { self?.jsErrorCount += 1 }
                 self?.appendLog(level: level, message: message)
             }
         }
@@ -105,6 +106,10 @@ final class MiniAppRunnerController: UIViewController {
     private let reloadButton = UIButton(type: .system)
     private let iterateButton = UIButton(type: .system)
     private let logButton = UIButton(type: .system)
+    private let hudButton = UIButton(type: .system)
+    /// 独家：性能监视浮层
+    private var devHUD: DevHUDView?
+    private var jsErrorCount = 0
 
     // 原始日志面板
     private let logPanel = UIView()
@@ -154,6 +159,13 @@ final class MiniAppRunnerController: UIViewController {
         logButton.translatesAutoresizingMaskIntoConstraints = false
         navBar.addSubview(logButton)
 
+        // 性能浮层开关（gauge 图标，独家 DevHUD）
+        hudButton.setImage(UIImage(systemName: "gauge"), for: .normal)
+        hudButton.tintColor = .systemBlue
+        hudButton.addTarget(self, action: #selector(toggleHUD), for: .touchUpInside)
+        hudButton.translatesAutoresizingMaskIntoConstraints = false
+        navBar.addSubview(hudButton)
+
         // 左上角刷新
         reloadButton.setImage(UIImage(systemName: "arrow.clockwise"), for: .normal)
         reloadButton.tintColor = .systemBlue
@@ -181,6 +193,11 @@ final class MiniAppRunnerController: UIViewController {
             iterateButton.centerYAnchor.constraint(equalTo: navBar.centerYAnchor),
             iterateButton.widthAnchor.constraint(equalToConstant: 36),
             iterateButton.heightAnchor.constraint(equalToConstant: 36),
+
+            hudButton.trailingAnchor.constraint(equalTo: iterateButton.leadingAnchor, constant: -8),
+            hudButton.centerYAnchor.constraint(equalTo: navBar.centerYAnchor),
+            hudButton.widthAnchor.constraint(equalToConstant: 36),
+            hudButton.heightAnchor.constraint(equalToConstant: 36),
 
 
             closeButton.trailingAnchor.constraint(equalTo: navBar.trailingAnchor, constant: -16),
@@ -488,6 +505,10 @@ final class MiniAppRunnerController: UIViewController {
         web.gateway.bindEmitters { [weak web] event, data in
             web?.bridgeEmit(event: event, data: data)
         }
+        // 注册跨窗口联动会话：其它窗口 broadcast/setSharedValue 实时推送到本窗口
+        HostSharedBus.shared.registerSession(appId: app.appId) { [weak self] event, data in
+            self?.web?.bridgeEmit(event: event, data: data)
+        }
         // 确保数据目录存在（用户可在 Files app 中浏览）
         app.ensureDataDirectory()
         do {
@@ -515,6 +536,29 @@ final class MiniAppRunnerController: UIViewController {
 
     @objc private func reloadPage() { loadApp() }
 
+    /// 切换性能监视浮层（独家 DevHUD）
+    @objc private func toggleHUD() {
+        if let hud = devHUD {
+            hud.isHidden.toggle()
+            hudButton.tintColor = hud.isHidden ? .systemBlue : .systemYellow
+            return
+        }
+        let hud = DevHUDView()
+        hud.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(hud)
+        NSLayoutConstraint.activate([
+            hud.topAnchor.constraint(equalTo: navBar.bottomAnchor, constant: 8),
+            hud.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8)
+        ])
+        hud.bridgeStats = { [weak web] in
+            guard let bridge = web?.bridgeForInterop else { return (0, 0) }
+            return (bridge.callCount, bridge.errorCount)
+        }
+        hud.jsErrorCount = { [weak self] in self?.jsErrorCount ?? 0 }
+        devHUD = hud
+        hudButton.tintColor = .systemYellow
+    }
+
     /// 打开 AI 修改：绑定本应用，用对话指挥 AI 迭代
     @objc private func iterateApp() {
         guard app.isAIGenerated else { return }
@@ -533,6 +577,10 @@ final class MiniAppRunnerController: UIViewController {
 
     /// WebView 回池：从父视图剥离后交给引擎复用（跳过下次启动的进程创建）
     private func recycleWeb() {
+        HostSharedBus.shared.unregisterSession(appId: app.appId)
+        devHUD?.removeFromSuperview()
+        devHUD = nil
+        jsErrorCount = 0
         guard let w = web else { return }
         w.removeFromSuperview()
         MiniAppWebView.recycle(w)

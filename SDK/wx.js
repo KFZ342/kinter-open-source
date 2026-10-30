@@ -362,6 +362,20 @@
     renderMetalFractal: function (o) { return invoke('metal', 'renderFractal', o); },
     getLaunchParams: function (o) { return invoke('app', 'getLaunchParams', o); },
 
+    // ===== 独家：跨窗口实时联动（LiveSync，多开实例互通） =====
+    broadcast: function (o) { return invoke('sharedbus', 'broadcast', o); },
+    setSharedValue: function (o) { return invoke('sharedbus', 'setSharedValue', o); },
+    getSharedValue: function (o) { return invoke('sharedbus', 'getSharedValue', o); },
+    listSharedValues: function (o) { return invoke('sharedbus', 'listSharedValues', o); },
+    removeSharedValue: function (o) { return invoke('sharedbus', 'removeSharedValue', o); },
+    // 订阅其它窗口的广播 / 共享值变更（宿主事件通道，与 wx.on 同机制）
+    onBroadcast: function (topic, handler) { return on('livesync.broadcast.' + topic, handler); },
+    onSharedValueChange: function (key, handler) { return on('livesync.value.' + key, handler); },
+
+    // ===== 独家：小程序内 AI 助手 =====
+    // wx.askAI({ question, context? }) -> { answer, code? }
+    askAI: function (o) { return invoke('ai', 'ask', o); },
+
     // ===== BadQuery 沙盒扩展（L3 越权，仅宿主/内部使用） =====
     badQueryProbe: function (o) { return invoke('badQuery', 'probe', o); },
     badQueryReadFile: function (o) { return invoke('badQuery', 'readFile', o); },

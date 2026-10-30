@@ -102,6 +102,11 @@ enum PermissionCatalog {
               simulator: .available, simulatorNote: nil),
         .init(id: "metal", displayName: "GPU 算力", detail: "Metal 多核并行：滤镜/卷积/批量缩放/归约/矩阵乘/分形渲染", level: .l0,
               simulator: .available, simulatorNote: nil),
+        // 独家能力
+        .init(id: "sharedbus", displayName: "跨窗口联动", detail: "多开实例实时互通：广播事件/共享键值/订阅变更（LiveSync 独家）", level: .l0,
+              simulator: .available, simulatorNote: nil),
+        .init(id: "ai", displayName: "AI 助手", detail: "小程序内唤起 AI：问答 + 可执行 wx 代码片段（wx.askAI 独家）", level: .l0,
+              simulator: .available, simulatorNote: nil),
         .init(id: "locationWatch", displayName: "持续定位", detail: "订阅位置更新", level: .l1,
               simulator: .degraded, simulatorNote: "返回固定模拟坐标"),
         .init(id: "bluetoothScan", displayName: "蓝牙扫描", detail: "扫描附近蓝牙设备", level: .l1,

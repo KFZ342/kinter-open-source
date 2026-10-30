@@ -14,6 +14,7 @@
     {"id":"auth-server","title":"账号服务端接口","summary":"register/login/me/logout/publish/purchase 接口与安全设计","keywords":["账号","登录","注册","服务端","接口","token","scrypt"],"file":"chapters/auth-server.md"},
     {"id":"badquery","title":"越权文件能力 badQuery（L3）","summary":"沙盒扩展原理、9 个方法、安全护栏、降级机制、错误码","keywords":["badQuery","越权","沙盒","L3","escape","degraded","护栏"],"file":"chapters/badquery.md"},
     {"id":"metal-gpu","title":"GPU 多核并行算力 metal","summary":"Metal 并行算子：滤镜/卷积/批量缩放/归约/矩阵乘/分形，全部多核并行","keywords":["GPU","Metal","并行","卷积","滤镜","矩阵","归约","分形","多核"],"file":"chapters/metal-gpu.md"},
+    {"id":"exclusive","title":"独家功能（别人没有的）","summary":"跨窗口实时联动 LiveSync、小程序内 AI 助手 wx.askAI、性能浮层 DevHUD","keywords":["独家","LiveSync","联动","广播","共享值","askAI","AI助手","DevHUD","性能"],"file":"chapters/exclusive.md"},
     {"id":"crash-safety","title":"崩溃防护与稳定性","summary":"三条铁律、ObjC 异常隔离、iPad popover、模拟器限制","keywords":["崩溃","防护","异常","popover","模拟器","稳定"],"file":"chapters/crash-safety.md"},
     {"id":"troubleshooting","title":"常见问题排查","summary":"错误码含义、权限被拒、白屏、超时、桥接不可用等排查路径","keywords":["报错","排查","问题","白屏","超时","权限被拒","capability_not_declared"],"file":"chapters/troubleshooting.md"}
   ]

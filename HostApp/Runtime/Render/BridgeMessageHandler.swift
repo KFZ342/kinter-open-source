@@ -17,6 +17,12 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
         super.init()
     }
 
+    /// 性能统计（DevHUD 读取）
+    private(set) var callCount = 0
+    private(set) var errorCount = 0
+    /// 最近一次网关调用的往返耗时（秒）
+    private(set) var lastCallDuration: TimeInterval = 0
+
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
         guard message.name == Self.handlerName,
@@ -27,6 +33,7 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
             return
         }
         let params = body["params"] as? [String: Any] ?? [:]
+        callCount += 1
 #if DEBUG
         // 只记录模块与方法，不打印 params（可能含 token/密码等敏感数据，且高频调用会刷日志）。
         // 节流：同一 module.method 每 100 次打印一次（首条必打，便于定位调用来源）。
@@ -79,7 +86,9 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
                                         method: method,
                                         params: params) { [weak self] result in
             DispatchQueue.main.async {
-                self?.sendBack(callbackId: callbackId, result: result)
+                guard let self = self else { return }
+                if case .failure = result { self.errorCount += 1 }
+                self.sendBack(callbackId: callbackId, result: result)
             }
         }
     }

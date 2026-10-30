@@ -25,6 +25,7 @@
 		23F76771190DB6CBBA4E8F6C /* KinterUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D8DEAE26CA4B932DAB5E39 /* KinterUser.swift */; };
 		25054E7ABE150788B1704D70 /* MicrophoneProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A973602187F579C93E5EED71 /* MicrophoneProvider.swift */; };
 		26B07960D13DDB0F8EBE0849 /* BluetoothScanProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0FAC281B3AB442B57448C29 /* BluetoothScanProvider.swift */; };
+		275F853E2E9479E54C11FE45 /* HostSharedBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93A0026DCE1986979023D65 /* HostSharedBus.swift */; };
 		2A08B3AE8D134F1F5F8F95B5 /* WebClipGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64D01F84D239C49CDFFB185 /* WebClipGenerator.swift */; };
 		2D287D25303938FC45C982CD /* PrintProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA09359F052DBB93BAC3B09 /* PrintProvider.swift */; };
 		2DB1555A8F83DE27B6BF0D48 /* AppWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D550871040CC582958179720 /* AppWindow.swift */; };
@@ -52,10 +53,12 @@
 		60499DB9F389202D7EDEADCA /* TTSProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E731644232CC5B197B5419 /* TTSProvider.swift */; };
 		6095B62C852008C6FF75A27B /* PhotoProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0696BCEED5071BAD64CDCFB9 /* PhotoProvider.swift */; };
 		6393D92E1C68A5A976CB5713 /* PDFProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E10035A3E28B6E536BCC8D /* PDFProvider.swift */; };
+		64199C9FCBCCBFE7AB138022 /* AskAIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3502710C6DA402325DDB4481 /* AskAIProvider.swift */; };
 		65BB0B6EB55E5F3CB0F5FD5B /* AppManageViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D202BBCF98EBFDC8E8FEC300 /* AppManageViewController.swift */; };
 		679028D45E4108307B5CE550 /* CapabilityRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4CE08AAF7946C7F3055D4C5 /* CapabilityRegistry.swift */; };
 		6827AA631D55C608DA15B393 /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = B05FE9D2EDCF5AFC86071FFD /* ObjCExceptionCatcher.m */; };
 		686DB87278BE8D8AD6610EE5 /* ktml.js in Resources */ = {isa = PBXBuildFile; fileRef = 9BF7DE1179E6DD8C3C3111F5 /* ktml.js */; };
+		68AC544671D672728DBAEAE6 /* metal-gpu.md in Resources */ = {isa = PBXBuildFile; fileRef = AE6FBAD826131DCC3364E59A /* metal-gpu.md */; };
 		6A014FB303F8F32E1F5952A4 /* SavePhotoProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787C5FFFD4607B0A9964A848 /* SavePhotoProvider.swift */; };
 		6F02C227D63A00D93355AD2B /* GitHubAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DAE13F2708E55EEF77A4AD /* GitHubAPI.swift */; };
 		6FCD6706E807CB1763BD8D40 /* MarkdownRenderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF8A3D414398ADE8A0C9A74 /* MarkdownRenderView.swift */; };
@@ -101,13 +104,16 @@
 		B9C5D26841B42D0F143B1267 /* ManifestParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04EEB3F80AD748519E3A2F68 /* ManifestParser.swift */; };
 		BAA539FC38F309D19849D490 /* HostPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 988A13A70CB3EB54E33385C6 /* HostPopup.swift */; };
 		BCBC532795C6B6BE234497E2 /* AISettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574C347E6A5DE1AED3057E3C /* AISettings.swift */; };
+		BFDA36D0881C26F81FBE26D7 /* SharedBusProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC88CC53D83AD3F448F2AE1 /* SharedBusProvider.swift */; };
 		BFFE5D79F3C7D798D57AC417 /* KinterShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A9119AC5601FF97BC9258D /* KinterShortcuts.swift */; };
+		C2296547B8A537957EE3360A /* DevHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0FDC0ECC2E644148671820 /* DevHUDView.swift */; };
 		C390B7838AFF5F5803C5B788 /* CalendarProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947557D1BA1EEC940697AA04 /* CalendarProvider.swift */; };
 		C7B4B89D7786C79FED72A834 /* BluetoothProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C2CEEB6D1726CA7434034D /* BluetoothProvider.swift */; };
 		C80590C53D4A0AECAF93F515 /* HTTPProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CDD34A3F9E209BE3C0F18B /* HTTPProvider.swift */; };
 		C8211F305E77F37148E8E0F1 /* troubleshooting.md in Resources */ = {isa = PBXBuildFile; fileRef = EE9A0F1B33565A7A43F9D5CE /* troubleshooting.md */; };
 		C8AE25C2C05F6F16292EEE31 /* BrightnessProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84587D1EC3EB98456B377CD9 /* BrightnessProvider.swift */; };
 		CA157252FF1C2AE6258C3993 /* CameraProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F50870EF3CB77F0DD2B702A /* CameraProvider.swift */; };
+		CDE59E5589937BEF4B1205D4 /* exclusive.md in Resources */ = {isa = PBXBuildFile; fileRef = 1DC92FDC8F0B0242B53BAF15 /* exclusive.md */; };
 		CE5E25F3B0449B80FEFE04DE /* UploadProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447DD63E7BAD791F48B9384 /* UploadProvider.swift */; };
 		CFAB6B353AE4E8AB86EDE469 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6461D3741B1CE73994AC99CA /* Assets.xcassets */; };
 		D0F7C59836C18BE2376C99AF /* BridgeMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502BE4B3BFE3BD1A3158A358 /* BridgeMessageHandler.swift */; };
@@ -191,6 +197,7 @@
 		13B49B289CC0A19484A585A7 /* KinterActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KinterActivityAttributes.swift; sourceTree = "<group>"; };
 		1858C7C8F7B0BEC32DED8855 /* UIViewController+SafelyPresent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIViewController+SafelyPresent.swift"; sourceTree = "<group>"; };
 		1B58BE0E8D45A7D3170032CE /* CommunicationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunicationProvider.swift; sourceTree = "<group>"; };
+		1DC92FDC8F0B0242B53BAF15 /* exclusive.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = exclusive.md; sourceTree = "<group>"; };
 		1F1DCB97DA5A53AC0C860E62 /* ClipboardImageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageProvider.swift; sourceTree = "<group>"; };
 		2000530C675449329CEB66D9 /* CustomLaunchConfigViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomLaunchConfigViewController.swift; sourceTree = "<group>"; };
 		26C2CEEB6D1726CA7434034D /* BluetoothProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothProvider.swift; sourceTree = "<group>"; };
@@ -206,6 +213,7 @@
 		325018E2E5994952FDA17CB0 /* GatewayError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayError.swift; sourceTree = "<group>"; };
 		3252B432A7A8EBD612C856CF /* testmusic.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = testmusic.mp3; sourceTree = "<group>"; };
 		34288CF47B31E7B3C69B4C02 /* SourceManagerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceManagerViewController.swift; sourceTree = "<group>"; };
+		3502710C6DA402325DDB4481 /* AskAIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskAIProvider.swift; sourceTree = "<group>"; };
 		351FCF8C4188EEAAC8CE4925 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		385A89F1EDB492842EAC5F9B /* PermissionCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionCatalog.swift; sourceTree = "<group>"; };
 		38D88C66CCDE931C11B1180F /* VideoRecordProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRecordProvider.swift; sourceTree = "<group>"; };
@@ -263,6 +271,7 @@
 		AA451DE7AE13798C27B3E52D /* KinterWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KinterWidgetBundle.swift; sourceTree = "<group>"; };
 		AA54DC894DE22C77F6EEF81F /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
 		ADDD63E43D47BFFC6D80F310 /* store-publish.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "store-publish.md"; sourceTree = "<group>"; };
+		AE6FBAD826131DCC3364E59A /* metal-gpu.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "metal-gpu.md"; sourceTree = "<group>"; };
 		AE853B04415C5D37E2F256BD /* crash-safety.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "crash-safety.md"; sourceTree = "<group>"; };
 		AFBB13032917C857CCD90CB0 /* MiniAppWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniAppWebView.swift; sourceTree = "<group>"; };
 		B05FE9D2EDCF5AFC86071FFD /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
@@ -287,14 +296,17 @@
 		CA1AC4A9DEDD818EA9334DE4 /* ManualEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualEngine.swift; sourceTree = "<group>"; };
 		CD91CB23E7FE8D4F0B3BB1B8 /* AccountProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountProvider.swift; sourceTree = "<group>"; };
 		CD93A5E42C4255BD3574FB69 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		CDC88CC53D83AD3F448F2AE1 /* SharedBusProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedBusProvider.swift; sourceTree = "<group>"; };
 		CDCF9A0B85F944DEA5911450 /* ReminderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderProvider.swift; sourceTree = "<group>"; };
 		CDEDCFF4374B5F3C98259F2D /* PageRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageRouter.swift; sourceTree = "<group>"; };
+		CF0FDC0ECC2E644148671820 /* DevHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevHUDView.swift; sourceTree = "<group>"; };
 		D05246BE6A8926857FCC2ECC /* AIPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPrompt.swift; sourceTree = "<group>"; };
 		D202BBCF98EBFDC8E8FEC300 /* AppManageViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppManageViewController.swift; sourceTree = "<group>"; };
 		D3BCC6493B2AF3BDEFFD3F29 /* MusicProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicProvider.swift; sourceTree = "<group>"; };
 		D3D53A98F337144022A4F380 /* SpeechProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechProvider.swift; sourceTree = "<group>"; };
 		D510E7EC9AAC721A4F44283F /* StoreViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreViewController.swift; sourceTree = "<group>"; };
 		D550871040CC582958179720 /* AppWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWindow.swift; sourceTree = "<group>"; };
+		D93A0026DCE1986979023D65 /* HostSharedBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostSharedBus.swift; sourceTree = "<group>"; };
 		DEED58F51AD2186E1B168D2E /* KinterAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KinterAuthManager.swift; sourceTree = "<group>"; };
 		E23C7CB3709C2A95AE523548 /* OpenMiniAppIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMiniAppIntent.swift; sourceTree = "<group>"; };
 		E61AE08550411AC9974749F1 /* MiniAppRunnerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniAppRunnerController.swift; sourceTree = "<group>"; };
@@ -338,6 +350,7 @@
 			isa = PBXGroup;
 			children = (
 				CD91CB23E7FE8D4F0B3BB1B8 /* AccountProvider.swift */,
+				3502710C6DA402325DDB4481 /* AskAIProvider.swift */,
 				10D2AF2A225A7ACA8A020BB4 /* AudioPlayerProvider.swift */,
 				F85BAE6161417C6D91ED3FA0 /* BadQueryProvider.swift */,
 				F00714AAE787EDC6FAAEF729 /* BatteryProvider.swift */,
@@ -354,6 +367,7 @@
 				A59D65BD30A587A6DD75501A /* DeviceInfoProvider.swift */,
 				88601F4F78620679738F52A1 /* FilesProvider.swift */,
 				BAA2BBFC87F3A026D95C429F /* HealthProvider.swift */,
+				D93A0026DCE1986979023D65 /* HostSharedBus.swift */,
 				87CDD34A3F9E209BE3C0F18B /* HTTPProvider.swift */,
 				9640D068AB105A89702BEA1F /* ImageProvider.swift */,
 				B86F2204493B924CF1E6A88B /* LiveActivityProvider.swift */,
@@ -376,6 +390,7 @@
 				CDCF9A0B85F944DEA5911450 /* ReminderProvider.swift */,
 				787C5FFFD4607B0A9964A848 /* SavePhotoProvider.swift */,
 				6D4114D2F5D0677A0C456866 /* ScreenAwakeProvider.swift */,
+				CDC88CC53D83AD3F448F2AE1 /* SharedBusProvider.swift */,
 				2BC8BACEBE5C613BFE74054D /* ShareProvider.swift */,
 				D3D53A98F337144022A4F380 /* SpeechProvider.swift */,
 				31E8D3A212A70C848C91BEC2 /* SpotlightProvider.swift */,
@@ -468,8 +483,10 @@
 				3B820C1FD795D3AE68D277AE /* badquery.md */,
 				6312113085D024B8DD04831D /* capability-gateway.md */,
 				AE853B04415C5D37E2F256BD /* crash-safety.md */,
+				1DC92FDC8F0B0242B53BAF15 /* exclusive.md */,
 				FA272FABD5DFE2EA4F4DA31D /* getting-started.md */,
 				2791F4BD9D4D46606EA72BED /* ktml-guide.md */,
+				AE6FBAD826131DCC3364E59A /* metal-gpu.md */,
 				ADDD63E43D47BFFC6D80F310 /* store-publish.md */,
 				EE9A0F1B33565A7A43F9D5CE /* troubleshooting.md */,
 				2A541E650FF929AA57186CDE /* wx-api-overview.md */,
@@ -500,6 +517,7 @@
 			isa = PBXGroup;
 			children = (
 				351FCF8C4188EEAAC8CE4925 /* AppSettings.swift */,
+				CF0FDC0ECC2E644148671820 /* DevHUDView.swift */,
 				78AF342EBE4FA6017D61CAC5 /* MiniAppLauncher.swift */,
 				E61AE08550411AC9974749F1 /* MiniAppRunnerController.swift */,
 				B53DC22CA0EE017DC8A4E71E /* MultiTaskContainerController.swift */,
@@ -804,12 +822,14 @@
 				82DBC2F2D78E9888EAD5B989 /* badquery.md in Resources */,
 				DC52FFAE087D7B5DDA948F47 /* capability-gateway.md in Resources */,
 				800E71D514E592FB93478E59 /* crash-safety.md in Resources */,
+				CDE59E5589937BEF4B1205D4 /* exclusive.md in Resources */,
 				E98F0BD8818045BDECC42F01 /* getting-started.md in Resources */,
 				D8BFE26223E1F6520C081D9A /* index.html in Resources */,
 				32B0F8F07223E5B1A3C40830 /* index.json in Resources */,
 				010746837F53C84FFE00A8BB /* ktml-guide.md in Resources */,
 				686DB87278BE8D8AD6610EE5 /* ktml.js in Resources */,
 				4D1F1380CE6B25CEBC356456 /* manifest.json in Resources */,
+				68AC544671D672728DBAEAE6 /* metal-gpu.md in Resources */,
 				0897EFD01B6BE0A9E0DCDE32 /* store-publish.md in Resources */,
 				DA756566CDB8EA22DC927269 /* testmusic.mp3 in Resources */,
 				C8211F305E77F37148E8E0F1 /* troubleshooting.md in Resources */,
@@ -843,6 +863,7 @@
 				8EF4DE2E257A7AAFAD1017B6 /* AppSettings.swift in Sources */,
 				97F3A1D5960786AB6305B27C /* AppStore.swift in Sources */,
 				2DB1555A8F83DE27B6BF0D48 /* AppWindow.swift in Sources */,
+				64199C9FCBCCBFE7AB138022 /* AskAIProvider.swift in Sources */,
 				51702DB7779433F50138B274 /* AudioPlayerProvider.swift in Sources */,
 				8EC1E0B93970CCC0CA476E96 /* AuditLog.swift in Sources */,
 				4EFDC347BD0A34EAF6735E2C /* AuthStore.swift in Sources */,
@@ -863,6 +884,7 @@
 				A45F2D35334FFB7BF40C2342 /* CommunicationProvider.swift in Sources */,
 				FDC65FF0ADC28F2D2803FAB5 /* ContactsProvider.swift in Sources */,
 				B142AB2C909A1AA4C327AE76 /* CustomLaunchConfigViewController.swift in Sources */,
+				C2296547B8A537957EE3360A /* DevHUDView.swift in Sources */,
 				F35F849700C47F016950FC20 /* DeviceInfoProvider.swift in Sources */,
 				B4894645B9EEBC328AE1CF57 /* FilesProvider.swift in Sources */,
 				D7421450EE8870B6CAAE6005 /* GatewayError.swift in Sources */,
@@ -870,6 +892,7 @@
 				C80590C53D4A0AECAF93F515 /* HTTPProvider.swift in Sources */,
 				94084FF9C75414357A6E856E /* HealthProvider.swift in Sources */,
 				BAA539FC38F309D19849D490 /* HostPopup.swift in Sources */,
+				275F853E2E9479E54C11FE45 /* HostSharedBus.swift in Sources */,
 				477AA2641C4FF68261D5C121 /* ImageProvider.swift in Sources */,
 				D440251705F843A744D8EF98 /* ImportViewController.swift in Sources */,
 				DA4E6AB1784B4E3C47BB833E /* InstalledApp.swift in Sources */,
@@ -920,6 +943,7 @@
 				5F925C1454524AA37E67829B /* ScreenAwakeProvider.swift in Sources */,
 				1F200530B5BEC9D3F63C0D18 /* SettingsViewController.swift in Sources */,
 				4CF4E6F58D0B7AFEBE875AC6 /* ShareProvider.swift in Sources */,
+				BFDA36D0881C26F81FBE26D7 /* SharedBusProvider.swift in Sources */,
 				E0F9E77397EEA6787C42B31A /* SourceManagerViewController.swift in Sources */,
 				3E9C0D183B226587E660F13B /* SpeechProvider.swift in Sources */,
 				FA425FCD9DA9F406BB5F7EEF /* SpotlightProvider.swift in Sources */,

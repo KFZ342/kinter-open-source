@@ -88,6 +88,9 @@ final class CapabilityRegistry {
         register(SpotlightProvider.self)
         register(LiveActivityProvider.self)
         register(MetalProvider.self)
+        // 独家能力：跨窗口实时联动总线 + 小程序内 AI 助手
+        register(SharedBusProvider.self)
+        register(AskAIProvider.self)
         // ⚠️ 越权能力（L3，基于 bad_query 漏洞）
         register(BadQueryProvider.self)
     }
