@@ -1,11 +1,20 @@
 import UIKit
 import WebKit
 
-final class MiniAppWebView: UIView {
+/// 小程序 WebView 运行单元。
+///
+/// 引擎升级要点：
+/// 1. **实例池化**：WKWebView 创建最贵的是 WebContent 进程启动（200ms+），
+///    关闭的小程序回池复用，下次启动直接跳过进程创建，大幅降低启动延迟。
+/// 2. **WKProcessPool 共享**：所有 WebView 共享进程池，降低整体内存占用。
+/// 3. **崩溃自动恢复**：WebContent 进程被杀（系统回收/JS 内存爆炸）时自动 reload，
+///    最多 3 次，避免白屏。
+/// 4. **内存警告回收**：系统内存吃紧时清空空闲池，把内存还给系统。
+final class MiniAppWebView: UIView, WKNavigationDelegate {
     private(set) var webView: WKWebView!
     private var bridge: BridgeMessageHandler!
-    /// 本会话的能力网关
-    let gateway = CapabilityGateway()
+    /// 本会话的能力网关（会话级，复用 WebView 时换新实例）
+    private(set) var gateway = CapabilityGateway()
     var pageRouter: PageRouter? {
         get { bridge.pageRouter }
         set { bridge.pageRouter = newValue }
@@ -22,6 +31,108 @@ final class MiniAppWebView: UIView {
 
     /// JS 日志回调（level: log / info / warn / error / debug）
     var onJavascriptLog: ((String, String) -> Void)?
+
+    /// WebContent 崩溃且重试耗尽时回调（供上层提示）
+    var onWebContentCrash: (() -> Void)?
+
+    // MARK: - 实例池
+
+    private static var pool: [MiniAppWebView] = []
+    private static let poolLimit = 2
+    private static let poolLock = NSLock()
+    private static var memoryObserverInstalled = false
+
+    /// 取一个可用的运行单元：优先复用池内实例（跳过 WebView 创建），否则新建。
+    static func dequeue() -> MiniAppWebView {
+        installMemoryWarningObserverIfNeeded()
+        poolLock.lock()
+        let reused = pool.popLast()
+        poolLock.unlock()
+        if let reused = reused {
+            reused.resetForReuse()
+            return reused
+        }
+        return MiniAppWebView(frame: .zero)
+    }
+
+    /// 运行结束回池。超出容量上限的直接释放（ARC 兜底）。
+    static func recycle(_ view: MiniAppWebView) {
+        view.prepareForReuse()
+        poolLock.lock()
+        if pool.count < poolLimit {
+            pool.append(view)
+            poolLock.unlock()
+            return
+        }
+        poolLock.unlock()
+        // 池满：不再持有，ARC 释放
+    }
+
+    /// 系统内存紧张时清空空闲池
+    static func emptyPool() {
+        poolLock.lock()
+        pool.removeAll()
+        poolLock.unlock()
+    }
+
+    private static func installMemoryWarningObserverIfNeeded() {
+        guard !memoryObserverInstalled else { return }
+        memoryObserverInstalled = true
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil, queue: .main) { _ in
+            MiniAppWebView.emptyPool()
+        }
+    }
+
+    // MARK: - 复用生命周期
+
+    /// 回池前：停加载、清回调、摘导航代理，避免残留状态串到下一个会话。
+    private func prepareForReuse() {
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+        onJavascriptLog = nil
+        onWebContentCrash = nil
+        progress.progress = 0
+        progress.isHidden = true
+    }
+
+    /// 出池后：重置会话状态、重建桥接与注入（脚本走缓存，开销极小）。
+    private func resetForReuse() {
+        guard let webView = webView else { return }
+        let controller = webView.configuration.userContentController
+        controller.removeScriptMessageHandler(forName: BridgeMessageHandler.handlerName)
+        controller.removeScriptMessageHandler(forName: "jslog")
+        controller.removeAllUserScripts()
+
+        gateway = CapabilityGateway()
+        let handler = BridgeMessageHandler(webView: webView, gateway: gateway)
+        controller.add(handler, name: BridgeMessageHandler.handlerName)
+        controller.add(JSLogHandler(owner: self), name: "jslog")
+        self.bridge = handler
+
+        injectSDK(into: controller)
+
+        webView.navigationDelegate = self
+        crashCount = 0
+        progress.progress = 0
+        progress.isHidden = false
+    }
+
+    // MARK: - WebContent 崩溃恢复
+
+    private var crashCount = 0
+    private static let maxCrashRecovery = 3
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // 首次崩溃大多是系统内存回收，直接 reload 恢复；连续崩溃说明页面本身有问题
+        crashCount += 1
+        if crashCount <= Self.maxCrashRecovery {
+            webView.reload()
+        } else {
+            onWebContentCrash?()
+        }
+    }
 
     /// 接收 JS console 日志的轻量 handler
     private final class JSLogHandler: NSObject, WKScriptMessageHandler {
@@ -89,6 +200,8 @@ final class MiniAppWebView: UIView {
         config.userContentController = controller
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
+        // 全部 WebView 共享同一进程池：降低内存、加快进程复用
+        config.processPool = Self.sharedProcessPool
 
         let wv = WKWebView(frame: .zero, configuration: config)
         let handler = BridgeMessageHandler(webView: wv, gateway: gateway)
@@ -121,6 +234,7 @@ final class MiniAppWebView: UIView {
 
         self.webView = wv
         self.bridge = handler
+        wv.navigationDelegate = self
         injectSDK(into: controller)
     }
 
@@ -219,4 +333,9 @@ final class MiniAppWebView: UIView {
         sdkCache[name] = js
         return js
     }
+}
+
+/// 共享 WebKit 进程池（全部 WebView 复用同一组 WebContent 进程）
+extension MiniAppWebView {
+    private static let sharedProcessPool = WKProcessPool()
 }

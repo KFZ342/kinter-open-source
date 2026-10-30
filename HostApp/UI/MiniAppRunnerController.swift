@@ -25,7 +25,8 @@ final class MiniAppRunnerController: UIViewController {
         // 顶部自定义导航栏
         setupNavBar()
 
-        web = MiniAppWebView(frame: .zero)
+        // 从实例池取 WebView（优先复用，跳过 WKWebView 进程创建）
+        web = MiniAppWebView.dequeue()
         web.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(web)
         NSLayoutConstraint.activate([
@@ -34,6 +35,11 @@ final class MiniAppRunnerController: UIViewController {
             web.topAnchor.constraint(equalTo: navBar.bottomAnchor),
             web.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+
+        // WebContent 崩溃重试耗尽时提示
+        web.onWebContentCrash = { [weak self] in
+            self?.showError("小程序页面进程异常，已多次尝试恢复失败，请点左上角刷新")
+        }
 
         // 接收 JS 原始日志
         web.onJavascriptLog = { [weak self] level, message in
@@ -522,6 +528,15 @@ final class MiniAppRunnerController: UIViewController {
         web?.gateway.setDisabledCapabilities([])
         store.clear()
         HostPopup.dismissAll()
+        recycleWeb()
+    }
+
+    /// WebView 回池：从父视图剥离后交给引擎复用（跳过下次启动的进程创建）
+    private func recycleWeb() {
+        guard let w = web else { return }
+        w.removeFromSuperview()
+        MiniAppWebView.recycle(w)
+        web = nil
     }
 
     @objc private func closeApp() {
@@ -534,12 +549,13 @@ final class MiniAppRunnerController: UIViewController {
         // 关闭小程序时清空全局数据，避免影响下一次启动
         store.clear()
         // 断开事件推送，避免内存泄漏
-        
-        
+
+
         // 清掉可能残留的弹窗
         HostPopup.dismissAll()
 
-        dismiss(animated: true) {
+        dismiss(animated: true) { [weak self] in
+            self?.recycleWeb()
             if let next = next {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     guard let root = UIApplication.shared.connectedScenes
