@@ -228,7 +228,7 @@ final class AgentBubbleCell: UITableViewCell {
     static let reuseID = "AgentBubbleCell"
 
     private let bubble = UIView()
-    private let label = UILabel()
+    private let markdownView = MarkdownRenderView()
     private let cardView = AgentCardView()
     private var leftAnchorCon: NSLayoutConstraint!
     private var rightAnchorCon: NSLayoutConstraint!
@@ -242,11 +242,9 @@ final class AgentBubbleCell: UITableViewCell {
         selectionStyle = .none
         backgroundColor = .clear
 
-        label.font = .systemFont(ofSize: 15)
-        label.numberOfLines = 0
-        label.lineBreakMode = .byWordWrapping
-        label.translatesAutoresizingMaskIntoConstraints = false
-        bubble.addSubview(label)
+        markdownView.translatesAutoresizingMaskIntoConstraints = false
+        markdownView.isUserInteractionEnabled = true
+        bubble.addSubview(markdownView)
 
         cardView.translatesAutoresizingMaskIntoConstraints = false
         cardView.isHidden = true
@@ -267,10 +265,10 @@ final class AgentBubbleCell: UITableViewCell {
             bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
             bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.88),
 
-            label.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
-            label.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
-            label.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
+            markdownView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+            markdownView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+            markdownView.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
+            markdownView.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
 
             cardView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 8),
             cardView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -8),
@@ -290,35 +288,29 @@ final class AgentBubbleCell: UITableViewCell {
 
     func configure(message: AgentRuntime.ChatMessage) {
         currentCard = message.card
+        let isDark = traitCollection.userInterfaceStyle == .dark
         if let card = message.card {
-            label.isHidden = true
+            markdownView.isHidden = true
             cardView.isHidden = false
             cardView.configure(card: card)
         } else {
             cardView.isHidden = true
-            label.isHidden = false
-            if message.isStreaming {
-                // 流式输出中：纯文本渲染（Markdown 解析开销大，等输出完再做）
-                label.attributedText = nil
-                label.text = message.text + "▋"
-            } else {
-                label.text = nil
-                label.attributedText = message.text.markdownRendered
-            }
+            markdownView.isHidden = false
+            let displayText = message.isStreaming ? message.text + "▋" : message.text
+            markdownView.update(markdown: displayText, isDark: isDark)
         }
         if message.role == "user" {
             bubble.backgroundColor = .systemBlue
-            label.textColor = .white
             rightAnchorCon.isActive = true
             minLeftCon.isActive = true
             leftAnchorCon.isActive = false
             maxRightCon.isActive = false
         } else {
             bubble.backgroundColor = .secondarySystemGroupedBackground
-            label.textColor = .label
+            // AI 气泡：强制左右贴边，彻底撑开宽度
             leftAnchorCon.isActive = true
-            maxRightCon.isActive = true
-            rightAnchorCon.isActive = false
+            rightAnchorCon.isActive = true
+            maxRightCon.isActive = false
             minLeftCon.isActive = false
         }
     }

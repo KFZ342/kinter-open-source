@@ -65,6 +65,8 @@ final class AgentRuntime {
 
     private var currentClient: AIClient?
     private var lastPrompt = ""
+    /// 连续工具失败计数，用于物理熔断防死循环
+    private var consecutiveToolFailures = 0
     /// 工具内部 LLM 生成进度（generate/iterate）
     private var generateBytes = 0
     private var lastProgressFlush = 0
@@ -96,6 +98,10 @@ final class AgentRuntime {
         g.setManifest(manifest)
         return g
     }()
+
+    /// 越权文件能力：绕过 L3 网关拦截，仅供 Agent 使用。
+    /// 每次调用内部自行探测，失败返回 degraded 信息，不会崩溃。
+    private lazy var badQueryProvider = BadQueryProvider()
 
     init(boundApp: InstalledApp? = nil) {
         self.boundApp = boundApp
@@ -165,6 +171,7 @@ final class AgentRuntime {
             return
         }
         lastPrompt = trimmed
+        consecutiveToolFailures = 0
         startAgent(round: 0)
     }
 
@@ -207,7 +214,8 @@ final class AgentRuntime {
                     }
                 case .failure(let err):
                     if case AIClient.AIError.cancelled = err {
-                        self.cancel()
+                        self.closeStreamingBubble()
+                        self.completeAction()
                     } else if self.lastRequestHadImage && !self.visionRetried {
                         // 模型可能不支持视觉：降级为不带图重试一次（截图信息以文本保留）
                         self.visionRetried = true
@@ -225,13 +233,35 @@ final class AgentRuntime {
     /// 工具执行结果回灌 → 下一轮推理
     private func feedBack(_ result: ToolResult, round: Int) {
         recordTool(tool: result.tool, input: result.input, result: result.summary)
+        
+        // 判断失败特征（降级、拦截、报错）
+        let isFailure = result.summary.contains("degraded: true") || 
+                        result.summary.contains("blocked: true") || 
+                        result.summary.contains("失败") || 
+                        result.summary.contains("错误") ||
+                        result.summary.contains("not found") ||
+                        result.summary.contains("无法")
+                        
+        if isFailure {
+            consecutiveToolFailures += 1
+        } else {
+            consecutiveToolFailures = 0
+        }
+        
         messages.append(ChatMessage(role: "tool",
                                     text: "工具「\(result.tool)」执行结果：\(result.summary)",
                                     isStreaming: false,
                                     card: result.card))
         saveHistory()
         onUpdate?()
-        startAgent(round: round + 1)
+        
+        if consecutiveToolFailures >= 3 {
+            appendAgent("⚠️ 连续多次工具调用失败，系统已强制中断重试。请检查当前设备是否支持该能力，或换个说法。", card: nil)
+            consecutiveToolFailures = 0
+            completeAction()
+        } else {
+            startAgent(round: round + 1)
+        }
     }
 
     /// 构造发给 LLM 的消息（注入工具 schema + 会话历史 + 工具记录）
@@ -338,6 +368,9 @@ final class AgentRuntime {
             runCapabilityTool(api: api, params: params, round: round)
         case "screenshot":
             runScreenshotTool(round: round)
+        case "manual":
+            let action = (args["action"] as? String) ?? "list"
+            runManualTool(action: action, args: args, round: round)
         default:
             feedBack(ToolResult(tool: tool, input: tool,
                                 summary: "未知工具「\(tool)」，请只从提供的工具中选择",
@@ -854,6 +887,15 @@ final class AgentRuntime {
     /// capability：直连宿主能力网关（与小程序同权限体系，调 wx.* 能力）
     private func runCapabilityTool(api: String, params: [String: Any], round: Int) {
         let name = api.replacingOccurrences(of: "wx.", with: "")
+
+        // 越权能力单独分流：不受 L3 网关拦截，但内部自带探测与降级
+        if name.hasPrefix("badQuery") {
+            var method = String(name.dropFirst("badQuery".count))
+            if method.hasPrefix(".") { method = String(method.dropFirst()) }
+            let lowered = method.prefix(1).lowercased() + method.dropFirst()
+            runBadQueryTool(method: lowered, params: params, round: round)
+            return
+        }
         guard let mm = WXAPIList.moduleMap[name],
               let sep = mm.firstIndex(of: ".") else {
             feedBack(ToolResult(tool: "capability", input: api,
@@ -885,6 +927,141 @@ final class AgentRuntime {
                                              card: nil), round: round)
                 }
             }
+        }
+    }
+
+    /// badQuery 专用执行器：调用 Provider，并把 degraded 状态如实回灌给 AI。
+    private func runBadQueryTool(method: String, params: [String: Any], round: Int) {
+        badQueryProvider.invoke(method: method, params: params) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success(let value):
+                    let dict = value as? [String: Any] ?? [:]
+                    let degraded = (dict["degraded"] as? Bool) ?? false
+                    let json = (try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .fragmentsAllowed]))
+                        .flatMap { String(data: $0, encoding: .utf8) } ?? String(describing: value)
+                    let truncated = json.count > 1200 ? String(json.prefix(1200)) + "…(已截断)" : json
+
+                    if degraded {
+                        let reason = (dict["reason"] as? String) ?? "未知原因"
+                        let hint = (dict["hint"] as? String) ?? ""
+                        self.feedBack(ToolResult(
+                            tool: "capability", input: "badQuery.\(method)",
+                            summary: "越权能力不可用（已自动降级）：\(reason)。\(hint)",
+                            card: AgentCard(type: "capability",
+                                            title: "badQuery.\(method)",
+                                            subtitle: "不可用 · 已降级",
+                                            summary: "该设备不支持越权文件访问，请改用沙盒内文件能力。",
+                                            detail: "## ⚠️ 越权能力不可用\n\n- **方法**：`badQuery.\(method)`\n- **原因**：\(reason)\n- **建议**：\(hint)\n\n```json\n\(json)\n```")), round: round)
+                    } else {
+                        self.feedBack(ToolResult(
+                            tool: "capability", input: "badQuery.\(method)",
+                            summary: "越权文件操作成功：\(truncated)",
+                            card: AgentCard(type: "capability",
+                                            title: "badQuery.\(method)",
+                                            subtitle: "成功",
+                                            summary: "沙盒扩展已获取并完成操作。",
+                                            detail: "## 🔓 badQuery.\(method)\n\n```json\n\(json)\n```")), round: round)
+                    }
+                case .failure(let err):
+                    self.feedBack(ToolResult(tool: "capability", input: "badQuery.\(method)",
+                                             summary: "越权能力调用失败：\(err.description)",
+                                             card: nil), round: round)
+                }
+            }
+        }
+    }
+
+    /// manual：查询程序手册。action = list / read / search
+    private func runManualTool(action: String, args: [String: Any], round: Int) {
+        let engine = ManualEngine.shared
+
+        switch action {
+        case "list":
+            let chapters = engine.listChapters()
+            let rows = chapters.compactMap { ch -> String? in
+                guard let id = ch["id"] as? String,
+                      let title = ch["title"] as? String,
+                      let summary = ch["summary"] as? String else { return nil }
+                return "- `\(id)` **\(title)**：\(summary)"
+            }.joined(separator: "\n")
+            let idList = chapters.compactMap { $0["id"] as? String }.joined(separator: ", ")
+            let text = "共 \(chapters.count) 章：\n\n\(rows)"
+            feedBack(ToolResult(tool: "manual", input: "list",
+                                summary: "手册共 \(chapters.count) 章，可用 id 为：\(idList)。请直接用 read 传这些 id。",
+                                card: AgentCard(type: "manual",
+                                                title: "程序手册",
+                                                subtitle: "\(chapters.count) 章",
+                                                summary: "可 read 或 search 查阅",
+                                                detail: text)), round: round)
+
+        case "read":
+            guard let id = args["id"] as? String else {
+                return feedBack(ToolResult(tool: "manual", input: "read",
+                                           summary: "缺少 id 参数。可用章节 id 通过 manual(action='list') 查看。",
+                                           card: nil), round: round)
+            }
+            var targetId = id
+            // 容错：如果 AI 传了中文标题，自动转成真实 id
+            if engine.readChapter(id: targetId) == nil {
+                let list = engine.listChapters()
+                if let matched = list.first(where: { ($0["title"] as? String)?.contains(targetId) == true || targetId.contains(($0["title"] as? String) ?? "__") }) {
+                    targetId = (matched["id"] as? String) ?? targetId
+                }
+            }
+            
+            guard let ch = engine.readChapter(id: targetId) else {
+                let validIds = engine.listChapters().compactMap { $0["id"] as? String }.joined(separator: ", ")
+                return feedBack(ToolResult(tool: "manual", input: id,
+                                           summary: "找不到章节「\(id)」。请使用这些 id 之一：\(validIds)。",
+                                           card: nil), round: round)
+            }
+            let title = (ch["title"] as? String) ?? id
+            let content = (ch["content"] as? String) ?? ""
+            let clipped = content.count > 4000 ? String(content.prefix(4000)) + "\n\n…（已截断，共 \(content.count) 字符）" : content
+            feedBack(ToolResult(tool: "manual", input: id,
+                                summary: "已读取章节「\(title)」，共 \(content.count) 字符。",
+                                card: AgentCard(type: "manual",
+                                                title: title,
+                                                subtitle: "\(content.count) 字符",
+                                                summary: content.prefix(120) + "…",
+                                                detail: clipped)), round: round)
+
+        case "search":
+            guard let query = args["query"] as? String, !query.isEmpty else {
+                return feedBack(ToolResult(tool: "manual", input: "search",
+                                           summary: "缺少 query 参数。",
+                                           card: nil), round: round)
+            }
+            let limit = (args["limit"] as? Int) ?? 5
+            let hits = engine.search(query: query, limit: limit)
+            if hits.isEmpty {
+                return feedBack(ToolResult(tool: "manual", input: query,
+                                           summary: "手册里没搜到「\(query)」。可换关键词或 manual(action='list') 浏览章节。",
+                                           card: nil), round: round)
+            }
+            let titles = hits.compactMap { $0["title"] as? String }
+            let detail = hits.map { h -> String in
+                let title = (h["title"] as? String) ?? ""
+                let cid = (h["id"] as? String) ?? ""
+                let score = (h["score"] as? Int) ?? 0
+                let snippets = (h["snippets"] as? [String]) ?? []
+                let snip = snippets.joined(separator: "\n\n")
+                return "### \(title)（`\(cid)`，score \(score)）\n\n\(snip)"
+            }.joined(separator: "\n\n---\n\n")
+            feedBack(ToolResult(tool: "manual", input: query,
+                                summary: "搜到 \(hits.count) 章：\(titles.description)。可用 manual(action='read', id='...') 读全文。",
+                                card: AgentCard(type: "manual",
+                                                title: "手册检索：\(query)",
+                                                subtitle: "\(hits.count) 条命中",
+                                                summary: titles.joined(separator: "、"),
+                                                detail: detail)), round: round)
+
+        default:
+            feedBack(ToolResult(tool: "manual", input: action,
+                                summary: "未知 action「\(action)」。可用：list / read / search。",
+                                card: nil), round: round)
         }
     }
 
@@ -961,7 +1138,9 @@ final class AgentRuntime {
     }
 
     func cancel() {
-        currentClient?.cancel()
+        let client = currentClient
+        currentClient = nil
+        client?.cancel()
         closeStreamingBubble()
         completeAction()
     }

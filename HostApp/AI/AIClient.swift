@@ -66,8 +66,10 @@ final class AIClient: NSObject {
         session?.invalidateAndCancel()
         session = nil
         onDelta = nil
-        onComplete?(.failure(AIError.cancelled))
+        // 先置空回调，防止 completion 内部再次调用 cancel 导致无限递归
+        let complete = onComplete
         onComplete = nil
+        complete?(.failure(AIError.cancelled))
     }
 
     // MARK: - 非流式（保留）

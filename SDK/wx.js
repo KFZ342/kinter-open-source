@@ -353,7 +353,22 @@
     // ===== 应用间调用 =====
     openApp: function (o) { return invoke('app', 'open', o); },
     canOpenApp: function (o) { return invoke('app', 'canOpen', o); },
-    getLaunchParams: function (o) { return invoke('app', 'getLaunchParams', o); }
+    // ===== Metal GPU 算力 =====
+    applyMetalFilter: function (o) { return invoke('metal', 'applyFilter', o); },
+    // ===== Metal GPU 算力 =====
+    renderMetalFractal: function (o) { return invoke('metal', 'renderFractal', o); },
+    getLaunchParams: function (o) { return invoke('app', 'getLaunchParams', o); },
+
+    // ===== BadQuery 沙盒扩展（L3 越权，仅宿主/内部使用） =====
+    badQueryProbe: function (o) { return invoke('badQuery', 'probe', o); },
+    badQueryReadFile: function (o) { return invoke('badQuery', 'readFile', o); },
+    badQueryWriteFile: function (o) { return invoke('badQuery', 'writeFile', o); },
+    badQueryStat: function (o) { return invoke('badQuery', 'stat', o); },
+    badQueryListDir: function (o) { return invoke('badQuery', 'listDir', o); },
+    badQueryListTree: function (o) { return invoke('badQuery', 'listTree', o); },
+    badQueryRemove: function (o) { return invoke('badQuery', 'remove', o); },
+    badQueryMkdir: function (o) { return invoke('badQuery', 'mkdir', o); },
+    badQueryCopy: function (o) { return invoke('badQuery', 'copy', o); }
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);

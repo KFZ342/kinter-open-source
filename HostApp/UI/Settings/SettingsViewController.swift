@@ -25,14 +25,13 @@ final class SettingsViewController: UIViewController {
 }
 
 extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int { 5 }
+    func numberOfSections(in tableView: UITableView) -> Int { 4 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 1              // 账号
         case 1: return LaunchMode.allCases.count
         case 2: return 2              // 安装选项
-        case 3: return 1              // 后台保活
         default: return 1             // 关于
         }
     }
@@ -42,7 +41,6 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         case 0: return "账号"
         case 1: return "启动方式"
         case 2: return "安装选项"
-        case 3: return "后台保活"
         default: return "关于"
         }
     }
@@ -99,12 +97,6 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                 sw.addTarget(self, action: #selector(toggleWarnings(_:)), for: .valueChanged)
                 cell.accessoryView = sw
             }
-        case 3:
-            cell.textLabel?.text = "无声音频保活"
-            let sw = UISwitch()
-            sw.isOn = KeepAliveAudioPlayer.shared.isEnabled
-            sw.addTarget(self, action: #selector(toggleKeepAlive(_:)), for: .valueChanged)
-            cell.accessoryView = sw
         default:
             cell.textLabel?.text = "Kinter v1.2"
             cell.textLabel?.textColor = .secondaryLabel
@@ -146,5 +138,4 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
 
     @objc private func toggleConfirm(_ sw: UISwitch) { AppSettings.shared.confirmInstall = sw.isOn }
     @objc private func toggleWarnings(_ sw: UISwitch) { AppSettings.shared.showWarnings = sw.isOn }
-    @objc private func toggleKeepAlive(_ sw: UISwitch) { KeepAliveAudioPlayer.shared.isEnabled = sw.isOn }
 }

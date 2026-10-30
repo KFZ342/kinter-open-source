@@ -87,5 +87,8 @@ final class CapabilityRegistry {
         register(AccountProvider.self)
         register(SpotlightProvider.self)
         register(LiveActivityProvider.self)
+        register(MetalProvider.self)
+        // ⚠️ 越权能力（L3，基于 bad_query 漏洞）
+        register(BadQueryProvider.self)
     }
 }
