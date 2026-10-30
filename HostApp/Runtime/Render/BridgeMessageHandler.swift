@@ -8,6 +8,8 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
     private weak var webView: WKWebView?
     /// 所属小程序会话的网关实例
     private let gateway: CapabilityGateway
+    /// DEBUG 日志节流：同一 module.method 高频调用（轮询类）只周期打印，避免刷屏拖慢桥接
+    private var debugLogCount: [String: Int] = [:]
 
     init(webView: WKWebView, gateway: CapabilityGateway) {
         self.webView = webView
@@ -26,8 +28,14 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
         }
         let params = body["params"] as? [String: Any] ?? [:]
 #if DEBUG
-        // 只记录模块与方法，不打印 params（可能含 token/密码等敏感数据，且高频调用会刷日志）
-        NSLog("[Bridge] %@.%@", module, method)
+        // 只记录模块与方法，不打印 params（可能含 token/密码等敏感数据，且高频调用会刷日志）。
+        // 节流：同一 module.method 每 100 次打印一次（首条必打，便于定位调用来源）。
+        let key = "\(module).\(method)"
+        let count = (debugLogCount[key] ?? 0) + 1
+        debugLogCount[key] = count
+        if count == 1 || count % 100 == 0 {
+            NSLog("[Bridge] %@.%@ ×%d", module, method, count)
+        }
 #endif
 
         // 路由模块由原生直接处理，不经过能力网关

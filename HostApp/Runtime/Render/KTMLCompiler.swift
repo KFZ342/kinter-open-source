@@ -21,20 +21,30 @@ final class KTMLCompiler {
 
     /// 编译 .ktml 源码为完整 HTML 文档。
     func compile(source: String, baseURL: URL) throws -> String {
-        // 运行时依赖 ktml.js，先确认它被打了进去
-        guard Bundle.main.url(forResource: "ktml", withExtension: "js") != nil else {
+        // 运行时依赖 ktml.js，先确认它被打了进去（一次性结果缓存，避免每次 Bundle 查找）
+        guard Self.hasKtmlJS else {
             throw CompileError.scriptMissing
         }
         let (template, scripts) = extractScripts(source)
         return wrapDocument(template: template, userScripts: scripts)
     }
 
+    /// ktml.js 打包存在性（进程内只查一次）
+    private static let hasKtmlJS: Bool = {
+        Bundle.main.url(forResource: "ktml", withExtension: "js") != nil
+    }()
+
     // MARK: - 提取脚本
+
+    /// 提取 <script> 块的正则（静态缓存：正则编译开销大，禁止每次调用重建）
+    private static let scriptRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: "<script[^>]*>([\\s\\S]*?)</script>",
+                                 options: [.caseInsensitive])
+    }()
 
     /// 从源码里提取所有 <script>...</script> 块，返回（去掉脚本的模板, 脚本内容数组）。
     private func extractScripts(_ source: String) -> (String, [String]) {
-        let pattern = "<script[^>]*>([\\s\\S]*?)</script>"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+        guard let regex = Self.scriptRegex else {
             return (source, [])
         }
 

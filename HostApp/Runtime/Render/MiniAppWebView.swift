@@ -126,8 +126,7 @@ final class MiniAppWebView: UIView {
 
     private func injectSDK(into controller: WKUserContentController) {
         // 先注入 KTML 编译器（在 wx 之前，因为 wx 依赖页面已就绪）
-        if let url = Bundle.main.url(forResource: "ktml", withExtension: "js"),
-           let js = try? String(contentsOf: url, encoding: .utf8) {
+        if let js = Self.sdkSource("ktml") {
             controller.addUserScript(WKUserScript(source: js,
                                                   injectionTime: .atDocumentStart,
                                                   forMainFrameOnly: true))
@@ -136,8 +135,7 @@ final class MiniAppWebView: UIView {
         }
 
         // 再注入 wx SDK
-        guard let url = Bundle.main.url(forResource: "wx", withExtension: "js"),
-              let js = try? String(contentsOf: url, encoding: .utf8) else {
+        guard let js = Self.sdkSource("wx") else {
             print("[Render] wx.js not found in bundle")
             return
         }
@@ -203,5 +201,22 @@ final class MiniAppWebView: UIView {
         controller.addUserScript(WKUserScript(source: logHook,
                                               injectionTime: .atDocumentStart,
                                               forMainFrameOnly: true))
+    }
+
+    // MARK: - SDK 源码缓存
+
+    /// Bundle 内 SDK JS 源码只读一次，全部 WebView 会话复用。
+    /// 避免每次创建 WebView 都重新做文件 I/O（ktml.js + wx.js 各一次全量读取）。
+    private static var sdkCache: [String: String] = [:]
+    private static let sdkLock = NSLock()
+
+    private static func sdkSource(_ name: String) -> String? {
+        sdkLock.lock()
+        defer { sdkLock.unlock() }
+        if let cached = sdkCache[name] { return cached }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "js"),
+              let js = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        sdkCache[name] = js
+        return js
     }
 }

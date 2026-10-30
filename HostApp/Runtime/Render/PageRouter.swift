@@ -128,8 +128,6 @@ final class PageRouter {
             let ktmlURL = rootDir.appendingPathComponent(filePath + ".ktml")
             let hasHTML = FileManager.default.fileExists(atPath: htmlURL.path)
             let hasKTML = FileManager.default.fileExists(atPath: ktmlURL.path)
-            NSLog("[Router] resolve path=%@ html=%@(%d) ktml=%@(%d)",
-                  filePath, htmlURL.path, hasHTML ? 1 : 0, ktmlURL.path, hasKTML ? 1 : 0)
             if hasHTML {
                 fileURL = htmlURL
             } else if hasKTML {

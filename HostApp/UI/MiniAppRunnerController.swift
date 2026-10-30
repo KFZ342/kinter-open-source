@@ -351,14 +351,18 @@ final class MiniAppRunnerController: UIViewController {
         logCountLabel.text = "\(logEntries.count) 条"
         guard !logPanel.isHidden, shows(level) else { return }
 
-        // 增量追加，避免整表重建
+        // 增量追加：append(NSAttributedString) 会正确触发 NSTextStorage 编辑通知与增量排版，
+        // 避免 text += 触发的整篇重排版（高频日志场景性能关键）
         let atBottom = logTextView.contentSize.height <= logTextView.bounds.height ||
             logTextView.contentOffset.y >= logTextView.contentSize.height - logTextView.bounds.height - 20
-        if logTextView.text.isEmpty {
-            logTextView.text = entry.line
-        } else {
-            logTextView.text += "\n" + entry.line
-        }
+        let storage = logTextView.textStorage
+        let font = logTextView.font ?? .monospacedSystemFont(ofSize: 11, weight: .regular)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white
+        ]
+        let prefix = storage.length == 0 ? "" : "\n"
+        storage.append(NSAttributedString(string: prefix + entry.line, attributes: attrs))
         if atBottom {
             let bottom = max(0, logTextView.contentSize.height - logTextView.bounds.height)
             logTextView.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
