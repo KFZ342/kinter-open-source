@@ -45,6 +45,33 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
         }
 #endif
 
+        // 安全模式：高危直通模块（账号读取 / 拉起其他应用 / 触发系统授权）需要用户放行
+        if SecurityMode.shared.isEnabled {
+            let directDangerous = (module == "auth" && method == "getUserInfo")
+                || (module == "app" && method == "open")
+                || (module == "permission" && method == "request")
+            if directDangerous {
+                // 直通模块拿不到 appId（桥接层没有 manifest 上下文），
+                // 令牌按「模块.方法」发放，与 SecurityEvent.grantKey 保持一致
+                let grantKey = "\(module).\(method)"
+                if !OneShotGrant.shared.consume(module: grantKey, appId: nil) {
+                    let ev = SecurityEvent(module: module, method: method,
+                                           appId: nil, appName: nil, timestamp: Date())
+                    TraceRecorder.shared.record(module: module, method: method,
+                                                status: "blocked", appId: nil)
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .securityCapabilityBlocked, object: ev)
+                    }
+                    sendRouterResult(callbackId: callbackId, ok: false,
+                                     error: ["code": "permission_denied",
+                                             "message": "安全模式已拦截 \(module).\(method)"])
+                    return
+                }
+                TraceRecorder.shared.record(module: module, method: method,
+                                            status: "ok", appId: nil)
+            }
+        }
+
         // 路由模块由原生直接处理，不经过能力网关
         if module == "router" {
             NSLog("[Bridge] routing to handleRouter")

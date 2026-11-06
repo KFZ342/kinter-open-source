@@ -376,16 +376,6 @@
     // wx.askAI({ question, context? }) -> { answer, code? }
     askAI: function (o) { return invoke('ai', 'ask', o); },
 
-    // ===== BadQuery 沙盒扩展（L3 越权，仅宿主/内部使用） =====
-    badQueryProbe: function (o) { return invoke('badQuery', 'probe', o); },
-    badQueryReadFile: function (o) { return invoke('badQuery', 'readFile', o); },
-    badQueryWriteFile: function (o) { return invoke('badQuery', 'writeFile', o); },
-    badQueryStat: function (o) { return invoke('badQuery', 'stat', o); },
-    badQueryListDir: function (o) { return invoke('badQuery', 'listDir', o); },
-    badQueryListTree: function (o) { return invoke('badQuery', 'listTree', o); },
-    badQueryRemove: function (o) { return invoke('badQuery', 'remove', o); },
-    badQueryMkdir: function (o) { return invoke('badQuery', 'mkdir', o); },
-    badQueryCopy: function (o) { return invoke('badQuery', 'copy', o); }
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);

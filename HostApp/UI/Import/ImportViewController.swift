@@ -157,7 +157,31 @@ final class ImportViewController: UIViewController,
     func documentPicker(_ controller: UIDocumentPickerViewController,
                         didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
-        install(url: url)
+        preview(url: url)
+    }
+
+    /// 安装前先解析 manifest，弹出权限确认页
+    private func preview(url: URL) {
+        showStatus("正在解析安装包…", loading: true)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let preview = try PackageInspector.inspect(zipURL: url)
+                DispatchQueue.main.async { [weak self] in
+                    self?.statusCard.isHidden = true
+                    self?.spinner.stopAnimating()
+                    let vc = InstallPreviewViewController(zipURL: url, preview: preview) { [weak self] in
+                        self?.install(url: url)
+                    }
+                    let nav = UINavigationController(rootViewController: vc)
+                    nav.modalPresentationStyle = .formSheet
+                    self?.present(nav, animated: true)
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showStatus("✗ 解析失败：" + error.localizedDescription, loading: false)
+                }
+            }
+        }
     }
 
     private func install(url: URL) {

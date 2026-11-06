@@ -35,6 +35,57 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
     /// WebContent 崩溃且重试耗尽时回调（供上层提示）
     var onWebContentCrash: (() -> Void)?
 
+    // MARK: - 预热（Pre-warm）
+
+    /// 预热实例：App 启动时创建一个 1x1 隐藏 WebView 并加载空白页 + 一次 WebGL 绘制，
+    /// 触发 GPU / Networking / WebContent 三个子进程提前初始化，把冷启动开销挪到启动阶段。
+    private static var warmupWebView: WKWebView?
+
+    /// 在 App 启动时调用一次。已预热则直接返回。
+    static func prewarm() {
+        guard warmupWebView == nil else { return }
+        let controller = WKUserContentController()
+        let config = WKWebViewConfiguration()
+        config.userContentController = controller
+        config.processPool = Self.sharedProcessPool
+        Self.applyGPUPreferences(config)
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+
+        let wv = WKWebView(frame: CGRect(x: 0, y: 0, width: 1, height: 1), configuration: config)
+        wv.loadHTMLString("""
+        <html><body style="margin:0">
+        <canvas id="c" width="1" height="1"></canvas>
+        <script>
+          var c = document.getElementById('c');
+          var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+          if (gl) { gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); }
+        </script>
+        </body></html>
+        """, baseURL: nil)
+        warmupWebView = wv
+    }
+
+    /// 内存警告 / 低内存时释放预热实例，把内存还给系统。
+    static func releasePrewarm() {
+        warmupWebView?.stopLoading()
+        warmupWebView?.navigationDelegate = nil
+        warmupWebView = nil
+    }
+
+    /// GPU 相关偏好。iOS 26 上 WKWebView 默认启用 WebGPU，显式锁定避免被策略覆盖。
+    /// 私有 KVC key 用 ObjCExceptionCatcher 包裹：key 不存在时异常被吞掉，不崩溃，只是不生效。
+    private static func applyGPUPreferences(_ config: WKWebViewConfiguration) {
+        let prefs = config.preferences
+        _ = ObjCExceptionCatcher.catchException {
+            prefs.setValue(true, forKey: "useGPUProcessForWebGLEnabled")
+            prefs.setValue(true, forKey: "webGLUsingMetal")
+            if #available(iOS 26.0, *) {
+                prefs.setValue(true, forKey: "webGPUEnabled")
+            }
+        }
+    }
+
     // MARK: - 实例池
 
     private static var pool: [MiniAppWebView] = []
@@ -82,6 +133,7 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil, queue: .main) { _ in
             MiniAppWebView.emptyPool()
+            MiniAppWebView.releasePrewarm()
         }
     }
 
@@ -124,6 +176,41 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
     private var crashCount = 0
     private static let maxCrashRecovery = 3
 
+    // MARK: - 导航白名单
+
+    /// 只允许 file:// 和 about:blank 在主 frame 导航。
+    /// 远程页面一旦进入同一个 WebView，就能向 bridge 发消息——这是必须堵住的口子。
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        let scheme = url.scheme?.lowercased() ?? ""
+        // 主 frame：只放行本地文件和空白页
+        if navigationAction.targetFrame?.isMainFrame ?? true {
+            if scheme == "file" || url.absoluteString == "about:blank" {
+                decisionHandler(.allow)
+            } else {
+                NSLog("[MiniAppWebView] blocked navigation to: %@", url.absoluteString)
+                decisionHandler(.cancel)
+            }
+            return
+        }
+        // 子 frame：放行 file 和 https（用于内嵌资源），其余拒绝
+        if scheme == "file" || scheme == "https" || scheme == "about" {
+            decisionHandler(.allow)
+        } else {
+            decisionHandler(.cancel)
+        }
+    }
+
+    // MARK: - 导航白名单
+
+    /// 只允许 file:// 和 about:blank 在主 frame 导航。
+    /// 远程页面一旦进入同一个 WebView，就能向 bridge 发消息——这是必须堵住的口子。
+    
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         // 首次崩溃大多是系统内存回收，直接 reload 恢复；连续崩溃说明页面本身有问题
         crashCount += 1
@@ -202,6 +289,8 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
         config.mediaTypesRequiringUserActionForPlayback = []
         // 全部 WebView 共享同一进程池：降低内存、加快进程复用
         config.processPool = Self.sharedProcessPool
+        // GPU 偏好：WebGL 走 Metal、WebGPU（iOS 26）显式锁定
+        Self.applyGPUPreferences(config)
 
         let wv = WKWebView(frame: .zero, configuration: config)
         let handler = BridgeMessageHandler(webView: wv, gateway: gateway)

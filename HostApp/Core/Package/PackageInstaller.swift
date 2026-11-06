@@ -69,8 +69,10 @@ final class PackageInstaller {
             if lower.hasSuffix(".app/")
                 || lower.hasSuffix(".appx/")
                 || lower.hasSuffix(".exe/")
-                || lower.hasSuffix(".dylib") {
-                warnings.append("包含非网页资源：\(e.path)")
+                || lower.hasSuffix(".dylib")
+                || lower.hasSuffix(".so")
+                || lower.hasSuffix(".framework/") {
+                throw InstallError.unsafePath("安装包不得包含可执行二进制：\(e.path)")
             }
             if lower.hasSuffix("manifest.json") { manifestEntry = e }
             allPaths.insert(e.path)

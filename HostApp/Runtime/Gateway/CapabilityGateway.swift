@@ -46,6 +46,16 @@ final class CapabilityGateway {
             return finish(.failure(.permissionDenied(module)))
         }
 
+        // 安全模式：三级判定（策略细节见 SecurityInterceptor）
+        switch SecurityInterceptor.shared.evaluate(
+            module: module, method: method,
+            appId: manifest.appId, appName: manifest.name) {
+        case .allow:
+            break
+        case .denyGrantable, .denyHard:
+            return finish(.failure(.permissionDenied(module)))
+        }
+
         guard let provider = providers[module],
               let level = registry.level(for: module) else {
             return finish(.failure(.unsupported(module)))
@@ -65,14 +75,20 @@ final class CapabilityGateway {
                 injectable.appId = manifest.appId
             }
 
-            var thrown: String?
-            thrown = ObjCExceptionCatcher.catchException {
+            // once 语义：provider 可能先回调再抛异常，避免上层收到两次结果
+            var didFinish = false
+            let once: (Result<Any, GatewayError>) -> Void = { r in
+                guard !didFinish else { return }
+                didFinish = true
+                finish(r)
+            }
+            let thrown = ObjCExceptionCatcher.catchException {
                 provider.invoke(method: method, params: params) { result in
-                    finish(result)
+                    once(result)
                 }
             }
-            if let t = thrown {
-                finish(.failure(.providerError("exception: \(t)")))
+            if let t = thrown, !didFinish {
+                once(.failure(.providerError("exception: \(t)")))
             }
         }
     }

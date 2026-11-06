@@ -1,10 +1,9 @@
 import UIKit
 
-/// 设置界面：启动方式、安装确认、警告提示。
+/// 设置界面：账号、安全模式、关于。
 final class SettingsViewController: UIViewController {
 
     private let table = UITableView(frame: .zero, style: .insetGrouped)
-    private var launchMode: LaunchMode = AppSettings.shared.launchMode
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -25,13 +24,12 @@ final class SettingsViewController: UIViewController {
 }
 
 extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int { 4 }
+    func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 1              // 账号
-        case 1: return LaunchMode.allCases.count
-        case 2: return 2              // 安装选项
+        case 1: return 2              // 安全模式：开关 + 隐私记录入口
         default: return 1             // 关于
         }
     }
@@ -39,8 +37,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0: return "账号"
-        case 1: return "启动方式"
-        case 2: return "安装选项"
+        case 1: return "安全模式"
         default: return "关于"
         }
     }
@@ -69,34 +66,21 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             return cell
 
         case 1:
-            let mode = LaunchMode.allCases[indexPath.row]
-            cell.textLabel?.text = mode.displayName
-            cell.accessoryView = nil
-            cell.detailTextLabel?.text = nil
-            if mode == launchMode {
-                cell.accessoryType = .checkmark
-            } else {
-                cell.accessoryType = .none
-            }
-            // custom 模式下显示选中的应用名
-            if mode == .custom, let id = AppSettings.shared.customAppId,
-               let app = AppLibrary.shared.app(id: id) {
-                cell.accessoryView = makeSubtitleLabel(app.name)
-            }
-        case 2:
             if indexPath.row == 0 {
-                cell.textLabel?.text = "安装前确认"
+                cell.textLabel?.text = "开启安全模式"
+                cell.textLabel?.textColor = .label
+                cell.accessoryView = nil
                 let sw = UISwitch()
-                sw.isOn = AppSettings.shared.confirmInstall
-                sw.addTarget(self, action: #selector(toggleConfirm(_:)), for: .valueChanged)
+                sw.isOn = SecurityMode.shared.isEnabled
+                sw.addTarget(self, action: #selector(toggleSecurityMode(_:)), for: .valueChanged)
                 cell.accessoryView = sw
             } else {
-                cell.textLabel?.text = "显示安装警告"
-                let sw = UISwitch()
-                sw.isOn = AppSettings.shared.showWarnings
-                sw.addTarget(self, action: #selector(toggleWarnings(_:)), for: .valueChanged)
-                cell.accessoryView = sw
+                cell.textLabel?.text = "App 隐私记录"
+                cell.textLabel?.textColor = .label
+                cell.accessoryView = nil
+                cell.accessoryType = .disclosureIndicator
             }
+
         default:
             cell.textLabel?.text = "Kinter v1.2"
             cell.textLabel?.textColor = .secondaryLabel
@@ -110,32 +94,13 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             navigationController?.pushViewController(AccountViewController(), animated: true)
             return
         }
-        if indexPath.section == 1 {
-            let mode = LaunchMode.allCases[indexPath.row]
-            if mode == .custom {
-                // 弹出配置页
-                let vc = CustomLaunchConfigViewController()
-                let nav = UINavigationController(rootViewController: vc)
-                nav.modalPresentationStyle = .formSheet
-                present(nav, animated: true)
-                return
-            }
-            launchMode = mode
-            AppSettings.shared.launchMode = mode
-            tableView.reloadSections(IndexSet(integer: 0), with: .automatic)
+        if indexPath.section == 1, indexPath.row == 1 {
+            navigationController?.pushViewController(PrivacyReportViewController(), animated: true)
         }
     }
 
-    /// 右侧显示的小号应用名标签
-    private func makeSubtitleLabel(_ text: String) -> UILabel {
-        let l = UILabel()
-        l.text = text
-        l.font = .systemFont(ofSize: 14)
-        l.textColor = .secondaryLabel
-        l.sizeToFit()
-        return l
+    @objc private func toggleSecurityMode(_ sw: UISwitch) {
+        SecurityMode.shared.isEnabled = sw.isOn
+        HostPopup.toast(sw.isOn ? "安全模式已开启：敏感能力将被拦截" : "安全模式已关闭")
     }
-
-    @objc private func toggleConfirm(_ sw: UISwitch) { AppSettings.shared.confirmInstall = sw.isOn }
-    @objc private func toggleWarnings(_ sw: UISwitch) { AppSettings.shared.showWarnings = sw.isOn }
 }

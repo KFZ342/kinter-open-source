@@ -272,8 +272,15 @@ final class StoreManager {
                 return
             }
 
-            // SHA256 校验
-            if let expected = app.sha256, !expected.isEmpty {
+            // SHA256 强制校验：商店包必须带 sha256，否则拒绝
+            guard let expected = app.sha256, !expected.isEmpty else {
+                try? FileManager.default.removeItem(at: dest)
+                DispatchQueue.main.async {
+                    completion(.failure(StoreError.checksumMismatch))
+                }
+                return
+            }
+            if !expected.isEmpty {
                 guard let actual = Self.sha256(of: dest),
                       actual.lowercased() == expected.lowercased() else {
                     try? FileManager.default.removeItem(at: dest)

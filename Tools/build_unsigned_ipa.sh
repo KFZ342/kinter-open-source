@@ -15,7 +15,7 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   exit 1
 fi
 
-PROJ=$(find "$PROJECT_DIR" -maxdepth 2 -name '*.xcodeproj' | head -1)
+PROJ="$PROJECT_DIR/Kinter.xcodeproj"
 if [ -z "$PROJ" ]; then
   echo "❌ 未找到 .xcodeproj，请先在 Xcode 中创建工程" >&2
   exit 1

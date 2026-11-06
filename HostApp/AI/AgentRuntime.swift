@@ -99,10 +99,6 @@ final class AgentRuntime {
         return g
     }()
 
-    /// 越权文件能力：绕过 L3 网关拦截，仅供 Agent 使用。
-    /// 每次调用内部自行探测，失败返回 degraded 信息，不会崩溃。
-    private lazy var badQueryProvider = BadQueryProvider()
-
     init(boundApp: InstalledApp? = nil) {
         self.boundApp = boundApp
         var opener = "我是你的小程序 AI 管家（Agent 模式），可以自己规划工具调用帮你生成、修改、安装、发布、打开、删除、导出小程序，还能生成二维码、统计和逛商店。"
@@ -888,14 +884,6 @@ final class AgentRuntime {
     private func runCapabilityTool(api: String, params: [String: Any], round: Int) {
         let name = api.replacingOccurrences(of: "wx.", with: "")
 
-        // 越权能力单独分流：不受 L3 网关拦截，但内部自带探测与降级
-        if name.hasPrefix("badQuery") {
-            var method = String(name.dropFirst("badQuery".count))
-            if method.hasPrefix(".") { method = String(method.dropFirst()) }
-            let lowered = method.prefix(1).lowercased() + method.dropFirst()
-            runBadQueryTool(method: lowered, params: params, round: round)
-            return
-        }
         guard let mm = WXAPIList.moduleMap[name],
               let sep = mm.firstIndex(of: ".") else {
             feedBack(ToolResult(tool: "capability", input: api,
@@ -930,48 +918,6 @@ final class AgentRuntime {
         }
     }
 
-    /// badQuery 专用执行器：调用 Provider，并把 degraded 状态如实回灌给 AI。
-    private func runBadQueryTool(method: String, params: [String: Any], round: Int) {
-        badQueryProvider.invoke(method: method, params: params) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                switch result {
-                case .success(let value):
-                    let dict = value as? [String: Any] ?? [:]
-                    let degraded = (dict["degraded"] as? Bool) ?? false
-                    let json = (try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .fragmentsAllowed]))
-                        .flatMap { String(data: $0, encoding: .utf8) } ?? String(describing: value)
-                    let truncated = json.count > 1200 ? String(json.prefix(1200)) + "…(已截断)" : json
-
-                    if degraded {
-                        let reason = (dict["reason"] as? String) ?? "未知原因"
-                        let hint = (dict["hint"] as? String) ?? ""
-                        self.feedBack(ToolResult(
-                            tool: "capability", input: "badQuery.\(method)",
-                            summary: "越权能力不可用（已自动降级）：\(reason)。\(hint)",
-                            card: AgentCard(type: "capability",
-                                            title: "badQuery.\(method)",
-                                            subtitle: "不可用 · 已降级",
-                                            summary: "该设备不支持越权文件访问，请改用沙盒内文件能力。",
-                                            detail: "## ⚠️ 越权能力不可用\n\n- **方法**：`badQuery.\(method)`\n- **原因**：\(reason)\n- **建议**：\(hint)\n\n```json\n\(json)\n```")), round: round)
-                    } else {
-                        self.feedBack(ToolResult(
-                            tool: "capability", input: "badQuery.\(method)",
-                            summary: "越权文件操作成功：\(truncated)",
-                            card: AgentCard(type: "capability",
-                                            title: "badQuery.\(method)",
-                                            subtitle: "成功",
-                                            summary: "沙盒扩展已获取并完成操作。",
-                                            detail: "## 🔓 badQuery.\(method)\n\n```json\n\(json)\n```")), round: round)
-                    }
-                case .failure(let err):
-                    self.feedBack(ToolResult(tool: "capability", input: "badQuery.\(method)",
-                                             summary: "越权能力调用失败：\(err.description)",
-                                             card: nil), round: round)
-                }
-            }
-        }
-    }
 
     /// manual：查询程序手册。action = list / read / search
     private func runManualTool(action: String, args: [String: Any], round: Int) {

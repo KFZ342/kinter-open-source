@@ -91,7 +91,6 @@ final class CapabilityRegistry {
         // 独家能力：跨窗口实时联动总线 + 小程序内 AI 助手
         register(SharedBusProvider.self)
         register(AskAIProvider.self)
-        // ⚠️ 越权能力（L3，基于 bad_query 漏洞）
-        register(BadQueryProvider.self)
+        // badQuery（L3 越权能力）已在编译期移除，详见 SECURITY_MODE.md
     }
 }

@@ -22,6 +22,12 @@ final class StorageProvider: CapabilityProvider {
                 completion(.failure(.invalidParams("data required")))
                 return
             }
+            // 单键上限 256KB，防止单个小程序写爆 UserDefaults
+            let encoded = (try? JSONSerialization.data(withJSONObject: value))?.count ?? 0
+            guard encoded <= 256 * 1024 else {
+                completion(.failure(.invalidParams("value too large (>256KB)")))
+                return
+            }
             defaults.set(value, forKey: fullKey)
             completion(.success(["ok": true]))
         case "get":

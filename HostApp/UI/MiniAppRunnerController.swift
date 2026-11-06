@@ -482,6 +482,14 @@ final class MiniAppRunnerController: UIViewController {
             manifest = m
         }
         if let m = manifest {
+            // 版本兼容检查：minHostVersion 高于当前宿主则拒绝运行
+            if let minV = m.minHostVersion, !minV.isEmpty {
+                let hostV = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0"
+                if Self.compareVersion(hostV, minV) < 0 {
+                    showError("此小程序需要宿主 v\(minV) 或更高，当前 \(hostV)")
+                    return
+                }
+            }
             web.gateway.setManifest(m)
         }
         // 读取待注入的启动参数
@@ -532,6 +540,19 @@ final class MiniAppRunnerController: UIViewController {
             label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
             label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -40)
         ])
+    }
+
+    /// 语义化版本比较：返回 -1 / 0 / 1
+    static func compareVersion(_ a: String, _ b: String) -> Int {
+        let pa = a.split(separator: ".").compactMap { Int($0) }
+        let pb = b.split(separator: ".").compactMap { Int($0) }
+        let n = max(pa.count, pb.count)
+        for i in 0..<n {
+            let va = i < pa.count ? pa[i] : 0
+            let vb = i < pb.count ? pb[i] : 0
+            if va != vb { return va > vb ? 1 : -1 }
+        }
+        return 0
     }
 
     @objc private func reloadPage() { loadApp() }

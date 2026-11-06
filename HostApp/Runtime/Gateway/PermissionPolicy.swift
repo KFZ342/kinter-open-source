@@ -1,5 +1,10 @@
 import AVFoundation
 import CoreLocation
+import Contacts
+import EventKit
+import Speech
+import HealthKit
+import CoreBluetooth
 
 /// 权限策略。
 /// L0：直接放行。
@@ -36,6 +41,27 @@ final class PermissionPolicy {
             // 复用单例，避免每次调用新建 CLLocationManager
             let status = Self.locationManager.authorizationStatus
             completion(status == .authorizedWhenInUse || status == .authorizedAlways || status == .notDetermined)
+        case "contacts":
+            let s = CNContactStore.authorizationStatus(for: .contacts)
+            completion(s == .authorized || s == .notDetermined)
+        case "calendar":
+            let s = EKEventStore.authorizationStatus(for: .event)
+            completion(s == .authorized || s == .notDetermined)
+        case "reminder":
+            let s = EKEventStore.authorizationStatus(for: .reminder)
+            completion(s == .authorized || s == .notDetermined)
+        case "speech":
+            let s = SFSpeechRecognizer.authorizationStatus()
+            completion(s == .authorized || s == .notDetermined)
+        case "health":
+            completion(HKHealthStore.isHealthDataAvailable())
+        case "bluetooth", "bluetoothScan":
+            if #available(iOS 13.1, *) {
+                let s = CBCentralManager.authorization
+                completion(s == .allowedAlways || s == .notDetermined)
+            } else {
+                completion(true)
+            }
         default:
             // photo 走 PHPicker、storage/clipboard/deviceInfo 无需系统授权
             completion(true)
