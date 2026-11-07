@@ -146,7 +146,6 @@ final class SecurityBanner {
                 card.alpha = 1
                 card.transform = .identity
             }, completion: nil)
-        }
     }
 
     private func makeButton(_ title: String, filled: Bool, action: @escaping () -> Void) -> UIButton {
