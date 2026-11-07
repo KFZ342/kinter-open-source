@@ -6,8 +6,6 @@
 
 我做完之后一直问自己一个问题：这些能力如果谁都能偷偷调用，那它就是个后门。所以这个项目一半的力气花在了另一件事上——**让每一次调用都被看见、被拦下、被记录**。这就是里面的「安全模式」。
 
-![应用库](docs/images/library.jpg)
-
 ![Platform](https://img.shields.io/badge/Platform-iOS%2017%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5-orange)
 ![License](https://img.shields.io/badge/License-AGPL--3.0-green)
@@ -42,7 +40,11 @@
 - ✅ 隐私记录页：总调用 / 敏感能力 / 已拦截 / 能力分布 / 时间轴红点 / 占比环图
 - ✅ 每次调用落盘成 JSONL，能在「文件」App 里直接翻
 
-![App 隐私记录](docs/images/privacy.jpg)
+开关在设置页第二栏，记录是同页进去的那一项：
+
+| 设置里打开它 | 它记下来的样子 |
+|---|---|
+| <img src="docs/images/settings.jpg" width="430"> | <img src="docs/images/privacy.jpg" width="430"> |
 
 ### 🎨 应用库
 - ✅ 分类分组，收藏区固定置顶
@@ -51,6 +53,8 @@
 - ✅ 左滑收藏、左滑卸载
 - ✅ SF Symbol 图标：manifest 里写 `iconSymbol` + `iconColor`，不用准备图片
 - ✅ 每个小程序一个「管理」页：分类、评分、使用统计、桌面开关、权限清单、卸载
+
+![应用库](docs/images/library.jpg)
 
 ### 🧭 能力导览（随包附赠的一本手册）
 - ✅ 50 项能力归成 45 个条目，逐条讲清四件事：能干什么、会弹什么框、被拒了怎么办、什么设备上不好使
