@@ -34,7 +34,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" \
-  archive
+  archive 2>&1 | tee "$BUILD_DIR/xcodebuild.log"
 
 echo "📂 打包 Payload ..."
 APP=$(find "$ARCHIVE/Products" -maxdepth 3 -name '*.app' | head -1)

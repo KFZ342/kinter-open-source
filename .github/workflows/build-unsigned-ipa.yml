@@ -24,6 +24,9 @@ jobs:
           xcode-select -p
           xcodebuild -version
 
+      - name: Show schemes
+        run: xcodebuild -list -project Kinter.xcodeproj
+
       - name: Build unsigned IPA
         shell: bash
         run: |
@@ -36,6 +39,21 @@ jobs:
           name: Kinter-unsigned-ipa
           path: build/Kinter-unsigned.ipa
           if-no-files-found: error
+
+      - name: Publish build log on failure
+        if: failure()
+        shell: bash
+        run: |
+          LOG=build/xcodebuild.log
+          mkdir -p ci-log
+          if [ -f "$LOG" ]; then tail -n 4000 "$LOG" > ci-log/xcodebuild.log; else echo "log missing" > ci-log/xcodebuild.log; fi
+          echo "run=${{ github.run_number }} commit=${{ github.sha }}" >> ci-log/xcodebuild.log
+          git config user.name "ci-log-bot"
+          git config user.email "ci-log-bot@users.noreply.github.com"
+          git checkout -B ci-log
+          git add -f ci-log/xcodebuild.log
+          git commit -m "CI log for run ${{ github.run_number }}" || true
+          git push -f origin ci-log
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
