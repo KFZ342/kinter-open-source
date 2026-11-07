@@ -394,10 +394,18 @@ enum PermissionManager {
             return
         }
         let store = HKHealthStore()
-        store.requestAuthorization(toShare: [], read: [read]) { _, _ in
-            DispatchQueue.main.async {
-                status(for: "health", completion: completion)
+        // HealthKit 要 com.apple.developer.healthkit entitlement，自签名包没有时
+        // requestAuthorization 会同步抛 ObjC 异常，不接住就是主线程 abort。
+        // 真机崩溃日志（bug_type 309 / EXC_CRASH·SIGABRT）就是走到这里挂的。
+        let thrown = ObjCExceptionCatcher.catchException {
+            store.requestAuthorization(toShare: [], read: [read]) { _, _ in
+                DispatchQueue.main.async {
+                    status(for: "health", completion: completion)
+                }
             }
+        }
+        if thrown != nil {
+            completion("unsupported")
         }
     }
 
