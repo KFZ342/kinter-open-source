@@ -1,242 +1,164 @@
-# Kinter
+# 🧩 Kinter
 
-Kinter 是一个面向 iOS 的小程序宿主框架，允许开发者以 ZIP 包形式分发和运行小程序，并通过统一的 `wx.*` API 调用系统原生能力。它强调安全边界、能力声明、隔离治理和可扩展性，提供从页面渲染、路由、能力网关到商店分发的一整套技术栈。
+**一个把 iPhone / iPad 变成「小程序运行时」的开源宿主**
 
-![Platform](https://img.shields.io/badge/Platform-iOS%2016%2B-blue)
+不是又一个 App。Kinter 更像一台你可以拆开看的小机器：把一个小程序打包成 ZIP 丢进去，它就能在系统里跑起来，并且真的能用相机、相册、定位、蓝牙、日历、健康数据这些原生能力。
+
+我做完之后一直问自己一个问题：这些能力如果谁都能偷偷调用，那它就是个后门。所以这个项目一半的力气花在了另一件事上——**让每一次调用都被看见、被拦下、被记录**。这就是里面的「安全模式」。
+
+![应用库](docs/images/library.jpg)
+
+![Platform](https://img.shields.io/badge/Platform-iOS%2017%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5-orange)
 ![License](https://img.shields.io/badge/License-AGPL--3.0-green)
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
-## 项目定位
+---
 
-Kinter 的核心目标不是单一 App，而是一套“原生宿主 + 小程序生态运行时”。
+## ✨ 现在已经能跑起来的东西
 
-- 小程序以 ZIP 包安装
-- 页面可使用 HTML 或 KTML 编写
-- JavaScript 通过 `wx.*` Promise API 调用宿主能力
-- 每个能力都需要在 `manifest.json` 中显式声明
-- 能力接入以 L0/L1/L2 等级分层，并在能力网关中做权限、地区、系统权限、异常隔离和审计
-- 支持多实例多窗口、页面栈路由、商店源管理、应用发布与 AI 生成小程序
+### 📦 宿主本体
+- ✅ 基于 `WKWebView` 的小程序运行环境，页面用 HTML 写就行
+- ✅ ZIP 包导入安装，`manifest.json` 写清名字、版本、要用的能力
+- ✅ 50 项原生能力，通过统一的 `wx.*` Promise 接口调用
+- ✅ 多实例多窗口，同一个 App 里能同时开好几个小程序
+- ✅ 页面栈路由，最多 10 层，带参数传递和返回栈
+- ✅ KTML 声明式模板（`column` / `text` / `for` / `if` + `{{ }}` 绑定），不想写 HTML 也能做界面
+- ✅ 能力调用异常隔离：某个能力炸了，宿主不跟着炸
 
-一句话理解：Kinter 是一套“将小程序能力封装进 iOS 宿主环境”的高扩展原生框架。
+### 🧠 能力网关（50 项）
+- ✅ 没在 `manifest.json` 里声明的能力，调用直接返回 `capability_not_declared`
+- ✅ 按 L0 / L1 / L2 分级：无授权、系统弹框、需要开发者资质
+- ✅ 系统权限统一收口，20 类 `scope.*` 可以查询、申请、被拒后引导去设置
+- ✅ 每个会话独立网关实例，两个小程序不会串状态
+- ✅ 全量审计日志
 
-## 克隆项目
+### 🛡 安全模式（这个项目最想讲的一件事）
+- ✅ 默认拒绝，不是默认放行
+- ✅ 三级策略：高危 / 常规 / 联网，各自不同待遇
+- ✅ 拦截时顶部出橙色卡片，**两个按钮摆在你面前**：「允许本次」「以后都允许」
+- ✅ 一次性令牌：允许一次 = 只放行一次，不给你偷偷续期
+- ✅ 组合规则：刚读过剪贴板、5 秒内又往外发数据，直接判定可疑并拦下
+- ✅ 隐私记录页：总调用 / 敏感能力 / 已拦截 / 能力分布 / 时间轴红点 / 占比环图
+- ✅ 每次调用落盘成 JSONL，能在「文件」App 里直接翻
+
+![App 隐私记录](docs/images/privacy.jpg)
+
+### 🎨 应用库
+- ✅ 分类分组，收藏区固定置顶
+- ✅ 星标收藏、0–5 星评分、打开次数与累计时长
+- ✅ 搜索：按名称 / appId / 分类实时过滤
+- ✅ 左滑收藏、左滑卸载
+- ✅ SF Symbol 图标：manifest 里写 `iconSymbol` + `iconColor`，不用准备图片
+- ✅ 每个小程序一个「管理」页：分类、评分、使用统计、桌面开关、权限清单、卸载
+
+### 🧭 能力导览（随包附赠的一本手册）
+- ✅ 50 项能力归成 45 个条目，逐条讲清四件事：能干什么、会弹什么框、被拒了怎么办、什么设备上不好使
+- ✅ 按 Apple 手册的排布重写过：大标题、图文分块、可展开条目
+- ✅ 完全离线，页面里不含任何网络请求
+
+### 🏪 商店与分发
+- ✅ 静态商店源：`StoreTools/build_index.py` 生成 `index.json`，扔到 GitHub Pages 就能用
+- ✅ 版本比较、SHA256 校验、下载安装
+- ✅ 付费小程序：manifest 声明售价，商店展示价格，购买后解锁
+- ✅ 发布接口设计好了（`/api/apps/publish`），后端可以自己接
+
+### 🤖 让 AI 帮你写小程序
+- ✅ 接 OpenAI 兼容接口，说一句话就生成一个小程序包
+- ✅ 生成完还能继续对话改，不满意就重新生成
+
+### 📱 系统集成
+- ✅ Live Activity（锁屏 / 灵动岛）
+- ✅ Siri 快捷指令
+- ✅ Spotlight 索引
+- ✅ 用 URL Scheme 唤起别的 App，`wx.canOpenURL` 先预检
+
+### 🛠 调试
+- ✅ 运行页导航栏的仪表盘图标：FPS、桥接调用与失败数、JS 错误、窗口数、运行时长
+- ✅ 一键请求全部系统权限（13 项一次跑完），做权限矩阵回归
+
+---
+
+## 🛡 安全模式到底怎么判断
+
+小程序调一次能力，要依次过这几关：
+
+```text
+小程序 JS  →  BridgeMessageHandler  →  CapabilityGateway
+                                        ├─ ① manifest 里声明了吗
+                                        ├─ ② 你在管理页手动关掉了吗
+                                        ├─ ③ 安全模式：三级判定 + 组合规则
+                                        ├─ ④ 系统权限（iOS 自己的授权框）
+                                        ├─ ⑤ 调用并记录
+                                        └─ ⑥ 异常隔离，失败也不崩宿主
+```
+
+三级是这样分的：
+
+| 档位 | 能力 | 策略 |
+|---|---|---|
+| 高危 | 通讯录、健康数据、麦克风、语音识别、录像、剪贴板、陀螺仪、日历、提醒 | 默认拒，只给「允许本次」，不提供永久授权 |
+| 常规 | 相机、相册、保存到相册、定位、蓝牙、蓝牙扫描 | 默认拒，可「允许本次」，也可「以后都允许」 |
+| 联网 | HTTP、上传、WebSocket | 放行但记录；刚调过高危能力 5 秒内出现，会被拦下 |
+
+判定表在 `HostApp/Runtime/Security/SecurityPolicy.swift`，是唯一来源。拦截点在网关最底层，不管调用方是小程序、Agent 还是别的什么，都绕不过去。
+
+---
+
+## 📲 装到设备上
+
+三种方式，挑顺手的。
+
+**① 直接下 IPA（最快）**
+
+[Releases 页面](https://github.com/KFZ342/kinter-open-source/releases/latest) 里下 `Kinter-unsigned.ipa`。
+
+- TrollStore：直接装
+- SideStore / AltStore / Sideloadly：自签安装
+- 装完第一次启动前，记得开「设置 → 隐私与安全性 → 开发者模式」
+
+**② 自己编译**
 
 ```bash
 git clone https://github.com/KFZ342/kinter-open-source.git
 cd kinter-open-source
-```
-
-如果你不想用 Git，也可以直接在 GitHub 页面点击 `Code` → `Download ZIP`。
-
-## 产品特性
-
-- 45 项原生能力
-  - 按 L0/L1/L2 分级管理
-  - 未声明能力的调用会被拒绝
-- 能力网关
-  - 声明校验
-  - 区域与系统权限检查
-  - ObjC 异常隔离
-  - 每个会话独立实例，避免状态串扰
-- KTML 模板引擎
-  - `column` / `text` / `for` / `if` 声明式组件
-  - `{{ }}` 数据绑定
-  - 自动 HTML 转义
-- 页面栈路由
-  - 多页导航
-  - 参数传递
-  - 返回栈管理，最多 10 层
-- 多实例多窗口
-  - 同一设备中可并行运行多个应用实例
-  - 彼此互不干扰
-- AI 生成小程序
-  - 基于 OpenAI 兼容接口
-  - 自动根据自然语言生成小程序包并迭代修改
-- 商店与分发
-  - 支持多源聚合
-  - 版本比较、SHA256 校验与下载
-  - 可发布到自建服务器或静态商店源
-  - 支持**付费小程序**：发布时声明售价（manifest `price` 字段），商店展示价格、购买后解锁安装
-  - **平台抽成 7%**：结算口径 = 售价 × 85%（Apple 抽成后宿主实收）× 93%，开发者应得 79.05% 售价
-- 系统集成
-  - Live Activity
-  - Siri 快捷指令
-  - Spotlight 索引
-  - App 间调用
-- 崩溃防护
-  - 对能力调用做异常隔离
-  - 避免单个能力异常拖垮宿主 App
-
-## 开箱即用
-
-首次启动后宿主会自动安装 5 个可直接运行的示例小程序，不用先学会打包就能看到效果：
-
-| 示例 | 分类 | 演示内容 |
-|---|---|---|
-| 计算器 | 工具 | 纯前端交互、四则运算 |
-| 待办清单 | 效率 | 本地存储、增删改状态 |
-| 秒表 | 工具 | 计时、分段记录 |
-| 单位换算 | 工具 | 表单联动、即时换算 |
-| 能力导览 | 学习 | 50 项原生能力速查、怎么做一个自己的小程序 |
-
-应用库同时提供：
-
-- **收藏**：单元格星标 + 左滑收藏，收藏区固定置顶
-- **评分**：0–5 星，在应用管理页设置
-- **使用统计**：打开次数、累计使用时长、最近打开时间
-- **搜索**：按应用名 / appId / 分类实时过滤
-- **SF Symbol 图标**：`manifest.json` 里写 `iconSymbol` + `iconColor` 即可，无需准备图标文件
-
-```json
-{
-  "appId": "com.demo.calculator",
-  "name": "计算器",
-  "version": "1.0.0",
-  "pages": ["index"],
-  "iconSymbol": "plus.forwardslash.minus",
-  "iconColor": "#FF9F0A"
-}
-```
-
-调试工具（运行页导航栏的仪表盘图标）：FPS / 桥接调用与失败 / JS 错误 / 联动窗口数 / 运行时长，以及**一键请求全部系统权限**，方便做权限矩阵回归。
-
-## 架构概览
-
-```text
-小程序 JS (wx.js / ktml.js)
-   ↓ postMessage
-WKWebView 桥接层 (BridgeMessageHandler)
-   ├─ router / store / auth / app / popup 原生直通
-   ↓
-能力网关 (CapabilityGateway，每会话独立实例)
-   ├─ manifest 声明校验
-   ├─ L0~L3 级别检查
-   ├─ 地区可用性检查
-   ├─ 系统权限检查 (PermissionPolicy)
-   ├─ ObjC 异常隔离
-   └─ 审计日志
-   ↓ 路由
-Provider（45 个能力，每会话全新实例）
-```
-
-从工程结构上看，Kinter 主要可以分成以下层次：
-
-1. JavaScript SDK 层
-   - `SDK/wx.js`：完成 `wx` API 抽象，提供 Promise 风格调用
-   - `SDK/ktml.js`：模板编译器，把声明式 KTML 转成 DOM
-
-2. 宿主运行时层
-   - `HostApp/`：核心应用环境，负责页面、路由、权限和能力调用
-
-3. 能力治理层
-   - `CapabilityGateway`、`Provider`、权限策略与审计机制
-   - 统一接收各类能力请求并做安全控制
-
-4. 分发与生态层
-   - `StoreTools/`：静态商店源构建
-   - `DemoApps/`：示例包与测试应用
-   - `Tools/`：工程生成与打包脚本
-
-## 仓库结构
-
-```text
-ActivityWidget/      Live Activity Widget Extension
-DemoApps/            示例小程序（ZIP + 源文件，可导入宿主）
-docs/                文档：CAPABILITIES.md / KTML.md / WX_API.md
-HostApp/             宿主 App：Runtime / Core / AI / Auth / UI / Intents / Store
-Kinter.xcodeproj     Xcode 工程
-SDK/                 wx.js（桥接 SDK） / ktml.js（模板编译器）
-StoreTools/          静态商店源构建工具（build_index.py）
-Tools/               xcodegen、未签名 IPA 构建脚本、API 列表生成器
-SIGNING.md           自签安装指引
-LICENSE              AGPL-3.0
-README.md            项目说明
-```
-
-## 关键能力清单（45 项）
-
-| 分组 | 能力（级别） |
-|---|---|
-| 媒体与位置 | camera(L1) · photo(L1) · microphone(L1) · speech(L1) · location(L1) · locationWatch(L1) · videoRecord(L1) · qrScan(L1) · savePhoto(L1) |
-| 设备与系统 | deviceInfo(L0) · battery(L0) · network(L0) · motion(L1) · bluetooth(L1) · bluetoothScan(L1) · vibrate(L0) · brightness(L0) · screenAwake(L0) |
-| 系统集成 | contacts(L1) · calendar(L1) · reminder(L1) · notification(L1) · share(L0) · openURL(L0) · communication(L0) |
-| 数据与网络 | storage(L0) · clipboard(L0) · clipboardImage(L0) · files(L0) · http(L0) · websocket(L0) · upload(L0) · networkWatch(L0) |
-| 扩展与进阶 | tts(L0) · qrGenerate(L0) · ocr(L0) · audio(L0) · image(L0) · pdf(L0) · print(L0) · biometric(L1) · health(L2) |
-| 账号与生态 | account(L0) · spotlight(L0) · liveActivity(L2) |
-
-说明：
-- L0：无授权
-- L1：系统弹窗授权
-- L2：需要 entitlement
-
-只有在 `manifest.json` 中声明的能力才会被允许访问；未声明的能力调用通常返回 `capability_not_declared`。
-
-## 快速开始
-
-### 1. 安装依赖
-
-```bash
 brew install xcodegen
-```
-
-### 2. 生成 Xcode 工程
-
-```bash
 xcodegen generate --spec Tools/project.yml
+open Kinter.xcodeproj
 ```
 
-### 3. 打开并运行
+选好设备，`Cmd + R`。
 
-在 Xcode 中打开 `Kinter.xcodeproj`，选择你的设备，然后按 `Cmd + R` 运行。
-
-### 4. 直接安装 IPA（可选）
-
-开箱即用的未签名 IPA（含最新音乐播放能力）发布在 GitHub Releases：
-
-**下载：[Releases 页面](https://github.com/KFZ342/kinter-open-source/releases/latest)（下载 `Kinter-unsigned-*.ipa`）**
-
-安装方式：
-- TrollStore：直接安装
-- SideStore / AltStore / Sideloadly：自签安装
-- 首次启动前需要打开：设置 → 隐私与安全性 → 开发者模式
-
-如需自行构建：
+**③ 命令行出未签名包**
 
 ```bash
 chmod +x Tools/build_unsigned_ipa.sh
 ./Tools/build_unsigned_ipa.sh Release
 ```
 
-产物默认生成到 `build/Kinter-unsigned.ipa`。
+产物在 `build/Kinter-unsigned.ipa`。推一个 tag 也会自动触发 GitHub Actions 出包。
 
-## 小程序开发示例
+第一次打开，宿主会自己装好 5 个示例：计算器、待办清单、秒表、单位换算、能力导览。不用先学会打包，点开就能看到东西在动。
 
-一个小程序通常是一个 ZIP 包，包含：
+---
 
-```text
-manifest.json
-index.html
-pages/...
-```
+## 🧩 写一个自己的小程序
 
-### manifest.json 示例
+一个 ZIP，根目录一个 `manifest.json`、一个 `index.html`，就够跑。
 
 ```json
 {
   "appId": "com.example.hello",
-  "version": "1.0.0",
   "name": "示例应用",
-  "minHostVersion": "1.0.0",
+  "version": "1.0.0",
   "pages": ["index"],
-  "capabilities": {
-    "deviceInfo": { "level": "L0" },
-    "files": { "level": "L0" }
-  }
+  "iconSymbol": "sparkles",
+  "iconColor": "#FF9F0A",
+  "capabilities": ["camera", "vibrate", "storage"]
 }
 ```
 
-### HTML 方式
+里面怎么调能力：
 
 ```js
 wx.chooseImage({ count: 1 })
@@ -244,7 +166,7 @@ wx.chooseImage({ count: 1 })
   .catch(err => console.error(err.code))
 ```
 
-### KTML 方式
+不想写 HTML，就写 KTML：
 
 ```xml
 <column padding="20" gap="16">
@@ -262,161 +184,66 @@ var items = [{ id: 1, name: '苹果', price: '8.5' }];
 </script>
 ```
 
-这说明 Kinter 的小程序开发体验同时兼容：
-- 传统 HTML + JS
-- 声明式 KTML 模板
+界面看不懂的时候，去翻随包的能力导览——每一项都写了在什么设备上会不好使。
 
-## JavaScript SDK
+---
 
-`SDK/wx.js` 是整个项目的桥接层，所有能力都通过 `wx` 对象暴露给页面脚本：
-
-```js
-wx.http({ url: 'https://example.com/api' })
-  .then(res => console.log(res))
-  .catch(err => console.error(err))
-```
-
-SDK 设计特点：
-- 统一 Promise API
-- 能力调用前置能力声明检查
-- 宿主和页面逻辑解耦
-- 运行时错误可被网关统一处理
-
-### iOS 原生权限深度集成
-
-小程序可通过 `wx.*` 权限 API 查询、申请 iOS 系统权限，并在被拒后引导用户到系统设置开启：
-
-```js
-// 查询所有权限状态（微信风格 authSetting）
-wx.getSetting().then(res => console.log(res.authSetting))
-
-// 查询单个权限细分状态
-wx.getPermissionStatus({ permission: 'scope.camera' })
-  .then(res => console.log(res.status)) // authorized / denied / notDetermined / restricted / limited / unsupported
-
-// 申请授权（弹系统授权框）
-wx.authorize({ permission: 'scope.camera' }).then(res => console.log(res.status))
-
-// 打开本 App 的系统设置页（权限被拒后引导用户）
-wx.openSetting()
-```
-
-支持的 `scope.*` 权限（20 类）：`scope.camera`（相机）、`scope.record`（麦克风）、`scope.userLocation`（定位）、`scope.album`（相册）、`scope.writePhotosAlbum`（保存相册）、`scope.addressBook`（通讯录）、`scope.calendar`（日历）、`scope.reminders`（提醒事项）、`scope.notification`（通知）、`scope.bluetooth`（蓝牙）、`scope.werun`（运动）、`scope.speech`（语音识别）、`scope.faceId`（Face ID）、`scope.health`（健康步数）、`scope.tracking`（广告追踪 ATT）、`scope.localNetwork`（本地网络）、`scope.nfc`（NFC 读取）、`scope.mediaLibrary`（媒体资料库/Apple Music）、`scope.homeKit`（HomeKit 智能家居）、`scope.nearby`（近距离交互 U1）。
-
-权限状态语义说明：
-- `att` / `mediaLibrary` / `homeKit`：iOS 提供状态查询 API，返回真实细分状态（authorized/denied/notDetermined/restricted）。
-- `localNetwork` / `nfc` / `nearby`：iOS **无状态查询 API**，未触发时返回 `notDetermined`（设备不支持返回 `unsupported`）；授权发生在对应系统会话（本地网络探测 / NFC 扫描 / 近距离测量）启动时，`wx.authorize` 对 `localNetwork` 会发起一次 Bonjour 探测触发系统弹窗，对 `nfc`/`nearby` 仅回读设备支持性。
-
-对应原生实现位于 `HostApp/Runtime/Gateway/PermissionManager.swift`，统一封装 AVFoundation / CoreLocation / Contacts / EventKit / UserNotifications / CoreBluetooth / CoreMotion / Speech / LocalAuthentication / HealthKit / Photos 授权链路。
-
-### 打开 iOS 原生 App（URL Scheme）
-
-小程序可通过 `wx.openURL` 用自定义 scheme 唤起已安装的 iOS 原生 App（微信 `weixin://`、QQ `mqq://`、支付宝 `alipay://`、本宿主 `kinter://` 等），并在打开前用 `wx.canOpenURL` 预检：
-
-```js
-// 预检：该 App 是否已安装、scheme 是否可打开
-wx.canOpenURL({ url: 'weixin://' }).then(res => console.log(res.canOpen)) // true/false
-
-// 打开原生 App（scheme 未注册会报错，便于小程序侧做降级提示）
-wx.openURL({ url: 'weixin://dl/chat' })
-  .then(res => console.log('已唤起微信'))
-  .catch(err => console.log('打开失败：', err.message))
-```
-
-安全说明：
-- 支持 http/https 及任意自定义 scheme；`file://`、`javascript://`、`data://`、`vbscript://`、`about:` 等危险 scheme 被硬禁止。
-- 打开前自动 `canOpenURL` 预检，App 未安装时返回明确错误 `provider_error`，小程序可据此展示"未安装"降级页。
-- `Info.plist` 已声明 `LSApplicationQueriesSchemes`（微信/QQ/支付宝/微博/淘宝/抖音/小红书/快手/kinter/tel/mailto/sms 等），保证 `canOpenURL` 对常见 App 返回真实结果。
-
-## 安全模型
-
-Kinter 并不是“开放式 JS 沙箱”那么简单，而是更偏向“有边界的能力执行平台”。
-
-主要安全控制包括：
-
-- manifest 权限声明
-- L0/L1/L2 能力分级
-- 地区与系统权限检查
-- 每个会话单独的 `CapabilityGateway` 实例
-- ObjC 异常隔离
-- 审计日志与统一错误封装
-
-这意味着：
-- 页面脚本本身不能无限制访问系统能力
-- 能力调用需要在声明、权限和安全策略下放行
-- 即使某一项能力失败，也不会直接拖垮宿主应用
-
-## 商店、应用分发与部署
-
-Kinter 既支持本地部署，也支持静态商店源。`StoreTools/` 允许脚本生成 `index.json`，用来做应用列表和版本分发。
-
-```bash
-python3 StoreTools/build_index.py
-```
-
-商店源结构示意：
+## 🗺 仓库结构
 
 ```text
-apps/
-  app-name/
-    manifest.json
-    icon.png
-    1.0.0.zip
-index.json
+ActivityWidget/    Live Activity 小组件扩展
+DemoApps/          示例小程序（ZIP + 源文件，可导入宿主）
+HostApp/           宿主 App：Runtime / Core / AI / Auth / UI / Intents / Store
+  Runtime/
+    Gateway/       能力网关 + 50 个 Provider
+    Security/      安全模式：分级、拦截、令牌、信任、落盘
+    Support/       ObjCExceptionCatcher 等底层支撑
+  UI/
+    Security/      橙色横幅、隐私记录图表
+SDK/               wx.js（桥接 SDK）、ktml.js（模板编译器）
+StoreTools/        静态商店源构建（build_index.py）
+Tools/             xcodegen spec、未签名 IPA 构建脚本
+docs/              CAPABILITIES / KTML / WX_API / DEPLOY / ROADMAP
+SIGNING.md         自签安装指引
 ```
 
-这样做的好处是：
-- 无需复杂后端
-- 可用 GitHub Pages / jsDelivr 作为静态源
-- 客户端通过拉取 `index.json` 完成应用列表同步
+---
 
-## 账号与服务端
+## 🧪 这个版本还做不到的事
 
-开源版本身不内置完整后端，但项目已设计了账号与应用发布方案：
+写在这里，省得你踩了以为是 bug。
 
-```text
-POST /api/register
-POST /api/login
-GET  /api/me
-POST /api/logout
-POST /api/apps/publish
-```
+- **有 6 个模块绕过网关**：页面跳转、应用商店、登录、应用管理、弹窗、权限设置直接在桥接层 `return`，安全模式管不到它们
+- **组合规则只有 5 秒窗口**：读完剪贴板等 6 秒再联网就检测不到，要彻底可靠得改成按行为链追踪
+- **判定表只覆盖 25 项**：剩下 25 项能力还没进分级表，目前按「非敏感」处理
+- **WebView 没有导航策略**：远程页面加载进来后，也能向桥发消息
+- **健康数据、Live Activity 要 entitlement**：自签名包拿不到，调用会老实返回「不支持」（不会闪退）
+- **模拟器上很多能力用不了**：相机、面容、语音识别、实时活动都不支持，这是预期行为
+- **同层渲染没做**：部分能力还是全屏 picker
+- **没有内置后端**：不接认证服务器时，登录、发布这些功能是用不了的
 
-这些接口用于：
-- 用户鉴权
-- 应用发布
-- 商店元数据更新
-- 分发资源管理
+---
 
-建议的生产环境安全要求：
-- 密码使用哈希与盐
-- Token 定期过期
-- ZIP 解包时防止路径穿越与炸弹
-- HTTPS 部署
+## 🤝 想一起改
 
-## 代码贡献方式
+- 加一项能力：在 `HostApp/Runtime/Gateway/Providers/` 新建 Provider，去注册中心登记，再去 `SecurityPolicy` 里把它归到某一档
+- 加一个 JS API：改 `SDK/wx.js`，顺手更新 `docs/WX_API.md`
+- 补文档：`docs/` 下面随便挑
 
-欢迎参与贡献：
+提 PR 之前不用问我风格，写清楚「为什么这么改」就行。
 
-- 新增原生能力：在 `HostApp/Runtime/Gateway/Providers/` 中增加 Provider，并在能力注册中心中注册
-- 新增 JS API：修改 `SDK/wx.js`，并同步生成 API 清单
-- 文档增强：补充到 `docs/` 下对应能力说明文件
+---
 
-## 已知限制
+## 📄 许可
 
-- 同层渲染未实现：部分能力仍采用全屏 picker 等形式
-- 页面脚本与 KTML 表达式在全局作用域执行，安全边界主要依赖宿主网关
-- 桥接层统一有 30s 超时，超时后保证 Promise 不挂起，但长任务可能仍在后台继续
-- 未配置认证服务器时，账号登录、应用发布等能力不可用
+[GNU AGPL-3.0](LICENSE)。
 
-## 许可证
+商用、修改、分发都可以，但拿它做成商业产品/服务，得把对应源码按同样协议公开。
 
-本项目使用 [GNU AGPL-3.0](LICENSE)。
+---
 
-简要说明：
-- 允许商用、修改和分发
-- 但如果将本项目或其衍生版本用于商业产品/服务，必须以相同协议公开对应源代码
+## 最后
 
-## 一句话总结
+这套东西最早是给自己用的：不想为了验证一个想法，去 Xcode 里改半天原生代码。后来能做的越来越多，问题也来了——能力给得越多，谁在什么时候用了什么，就越说不清。安全模式是为此补上的，能力导览也是。它们不算炫技，只是让这东西敢给别人用。
 
-Kinter 是一个“高安全边界、高能力抽象、可扩展的 iOS 小程序宿主框架”，它把应用分发、原生能力、模板渲染、权限控制和商店生态统一进一套架构中，目标是把小程序运行时做成真正可用于生产的 iOS 平台能力层。
+如果你也在 iPad 上折腾小程序、或者单纯想看看「一个 App 能有多少种原生能力」，欢迎拿走玩。
