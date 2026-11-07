@@ -21,6 +21,7 @@
 		197B0BCA061A0A2F378137A1 /* MiniAppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AF342EBE4FA6017D61CAC5 /* MiniAppLauncher.swift */; };
 		1A6370F8B06583351891D3C8 /* PackageInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B21B36F0BDDCBBAA59EA7EE /* PackageInspector.swift */; };
 		1B1E148E55AD0F75AD650722 /* PackageInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9296E6FF14BA7BED8097ECA3 /* PackageInstaller.swift */; };
+		D3A1B2C4E5F60718293A4B5C /* DemoAppsCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3A1B2C4E5F60718293A4B5D /* DemoAppsCatalog.swift */; };
 		1B55DB7838321CB2055DFDA3 /* MiniAppWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFBB13032917C857CCD90CB0 /* MiniAppWebView.swift */; };
 		1F200530B5BEC9D3F63C0D18 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD93A5E42C4255BD3574FB69 /* SettingsViewController.swift */; };
 		206BA8DE22C5973D05A1B32B /* MiniAppEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835DBBCB4585EBDC3A0CD5AC /* MiniAppEntity.swift */; };
@@ -278,6 +279,7 @@
 		8BF56AC51B95D8B9F1B95EF5 /* SecurityEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityEvent.swift; sourceTree = "<group>"; };
 		9233174014D786DBE4192394 /* ai-agent.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ai-agent.md"; sourceTree = "<group>"; };
 		9296E6FF14BA7BED8097ECA3 /* PackageInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageInstaller.swift; sourceTree = "<group>"; };
+		D3A1B2C4E5F60718293A4B5D /* DemoAppsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoAppsCatalog.swift; sourceTree = "<group>"; };
 		947557D1BA1EEC940697AA04 /* CalendarProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarProvider.swift; sourceTree = "<group>"; };
 		9640D068AB105A89702BEA1F /* ImageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProvider.swift; sourceTree = "<group>"; };
 		988A13A70CB3EB54E33385C6 /* HostPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostPopup.swift; sourceTree = "<group>"; };
@@ -681,6 +683,7 @@
 			children = (
 				6B21B36F0BDDCBBAA59EA7EE /* PackageInspector.swift */,
 				9296E6FF14BA7BED8097ECA3 /* PackageInstaller.swift */,
+				D3A1B2C4E5F60718293A4B5D /* DemoAppsCatalog.swift */,
 				3CD5577F4547F44D3275D8BD /* ZipArchive.swift */,
 			);
 			path = Package;
@@ -983,6 +986,7 @@
 				6393D92E1C68A5A976CB5713 /* PDFProvider.swift in Sources */,
 				1A6370F8B06583351891D3C8 /* PackageInspector.swift in Sources */,
 				1B1E148E55AD0F75AD650722 /* PackageInstaller.swift in Sources */,
+				D3A1B2C4E5F60718293A4B5C /* DemoAppsCatalog.swift in Sources */,
 				DCECB15ADE21C9FC52DCEC51 /* PageRouter.swift in Sources */,
 				D21C9AF53471C8214DCDA4DD /* PermissionCatalog.swift in Sources */,
 				85EEFAF64986DF01F208499C /* PermissionManager.swift in Sources */,
