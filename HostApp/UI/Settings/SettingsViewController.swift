@@ -34,6 +34,23 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         }
     }
 
+    /// 版本号从 Info.plist 读，不再手写——手写过一次 "v1.2"，和实际包永远对不上
+    private static var versionText: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "v\(v)（build \(b)）"
+    }
+
+    func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        guard section == 1 else { return nil }
+        let all = CapabilityRegistry.shared.allCapabilities()
+        guard !all.isEmpty else { return nil }
+        let covered = all.keys.filter {
+            SecurityPolicy.tier(of: $0) != nil || SecurityPolicy.isHardDenied($0)
+        }.count
+        return "已分级 \(covered) / \(all.count) 项能力。低敏能力只记录、不打扰。"
+    }
+
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0: return "账号"
@@ -82,7 +99,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             }
 
         default:
-            cell.textLabel?.text = "Kinter v1.2"
+            cell.textLabel?.text = "Kinter \(Self.versionText)"
             cell.textLabel?.textColor = .secondaryLabel
         }
         return cell

@@ -28,7 +28,8 @@ Kinter 的定位是「有边界的能力执行平台」，但原来的模型有�
 |---|---|---|
 | `critical` | contacts, health, microphone, speech, videoRecord, clipboard, clipboardImage, motion, calendar, reminder | 默认拒；**可「允许本次」，不给「以后都允许」** |
 | `standard` | camera, photo, savePhoto, location, bluetooth, bluetoothScan | 默认拒；**可「允许本次」+「以后都允许」**（进信任清单） |
-| `network` | http, upload, websocket | **默认放行只记录**；单独拒绝会让绝大多数 app 残废 |
+| `network` | http, upload, websocket, ai, openURL, share, communication, music, print | **默认放行只记录**；与隐私数据组合出现时拦下 |
+| `benign` | deviceInfo, battery, vibrate, storage, files, tts, image, pdf 等 | **只记录不拦**，拦了只会让用户烦 |
 
 分级表在 `SecurityPolicy.swift`，是能力判定的**唯一来源**。`SecurityMode` 和 `SecurityInterceptor` 都查它，不硬编码。
 
@@ -37,7 +38,8 @@ Kinter 的定位是「有边界的能力执行平台」，但原来的模型有�
 单个能力都不敏感，组合起来可疑：
 
 ```
-高危能力调用后 5 秒内出现网络外发 → 拦截 + 告警
+隐私数据能力（通讯录/健康/剪贴板/日历/提醒/语音/生物识别/账号）调用后 60 秒内出现网络外发 → 拦截并说明原因
+设备读取能力（相机/相册/麦克风/录像/定位/扫码/识字等）调用后 10 秒内出现网络外发 → 同样拦下
 ```
 
 用来抓「读剪贴板 → 立刻上传」这类行为。实现在 `SecurityInterceptor.evaluate` 的 `network` 分支。
@@ -125,7 +127,7 @@ Documents/SecurityTrace/<sessionId>.jsonl
 
 ## 七、用户看到的三条通道
 
-1. **实时横幅**：拦截瞬间从顶部滑入，2.5 秒自动收
+1. **实时横幅**：拦截瞬间从顶部滑入，**不自动收起**，等你点按钮或关掉；多个能力同时被拦会排队依次提示
 2. **隐私记录页**：概览 + 能力分布 + 敏感时间轴 + 调用占比（Swift Charts）
 3. **TraceRecorder**：JSONL 落盘，可导出、可重放
 
@@ -149,15 +151,13 @@ Documents/SecurityTrace/<sessionId>.jsonl
 
 用户点「允许本次」拿到的是**真数据**，不是假数据。幽灵权限（基底图 + 运行时派生）只讨论了设计，没落代码。
 
-### 4. 组合规则只在 network 档生效
+### 4. 组合规则是时间窗，不是数据流
 
-`5 秒内高危机联网` 只在当前调用是 `network` 档时检查。如果恶意 app 先读剪贴板、等 6 秒再联网，规则不触发。
+隐私数据 60 秒、设备读取 10 秒。恶意 app 先把数据缓存下来、过一分钟再传，规则不触发；要彻底可靠得改成会话级 taint 标记 + 行为链追踪。
 
-### 5. WebView 无导航策略
+### 5. WebView 导航策略（已实现）
 
-全仓库没有 `decidePolicyFor navigationAction`。远程页面进入同一个 WebView 后仍能向 `bridge` 发消息。
-
-**修法**：实现导航白名单，只允许 `file://` 和 `about:blank`。
+主 frame 只允许 `file://` 与 `about:blank`，远程页面进不来；子 frame 放行 `file/https/about` 用于内嵌资源。实现在 `MiniAppWebView.webView(_:decidePolicyFor:decisionHandler:)`。
 
 ## 九、如何验证
 

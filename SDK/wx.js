@@ -14,7 +14,8 @@
     return (w && w.messageHandlers && w.messageHandlers.bridge) ? w.messageHandlers.bridge : null;
   }
 
-  var BRIDGE_TIMEOUT_MS = 30000;
+  // 60s：安全模式可能挂起调用等用户点「允许本次」（原生侧 45s 内必有结果）
+  var BRIDGE_TIMEOUT_MS = 60000;
 
   function invoke(module, method, params, noTimeout) {
     return new Promise(function (resolve, reject) {

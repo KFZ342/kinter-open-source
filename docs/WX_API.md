@@ -14,7 +14,7 @@ wx.chooseImage({ count: 1 })
 
 ### 超时
 
-所有桥接调用统一 **30 秒超时**。原生未回调时 Promise 以 `{code:'timeout'}` 拒绝，不会永久挂起。
+所有桥接调用统一 **60 秒超时**（要留时间给安全模式等你点授权）。原生未回调时 Promise 以 `{code:'timeout'}` 拒绝，不会永久挂起。
 
 ### 错误码
 
@@ -28,7 +28,7 @@ wx.chooseImage({ count: 1 })
 | `invalid_params` | 参数缺失或非法 |
 | `method_not_found` | 模块下没有该方法 |
 | `provider_error` | Provider 执行出错 |
-| `timeout` | 桥接 30s 超时 |
+| `timeout` | 桥接 60s 超时 |
 | `bridge_unavailable` | 原生桥不存在（页面在普通浏览器打开） |
 
 ### manifest 声明

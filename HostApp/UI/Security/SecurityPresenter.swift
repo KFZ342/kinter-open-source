@@ -47,16 +47,24 @@ final class SecurityPresenter {
         let tier = SecurityPolicy.tier(of: ev.module)
         let canTrust = (tier == .standard)
 
+        // 走网关的能力都被挂起了，放行后能自动重放；
+        // 直通模块（auth/app/permission）没有挂起，仍需用户回小程序再点一次
+        let autoResume = (tier != nil)
+
         SecurityBanner.shared.show(
             module: ev.module,
             appName: ev.appName,
+            reason: ev.reason,
+            autoResume: autoResume,
             onAllowOnce: {
                 OneShotGrant.shared.grant(module: ev.grantKey, appId: ev.appId)
+                PendingCapabilityStore.shared.resume(appId: ev.appId, module: ev.module)
             },
             onTrust: canTrust ? {
                 if let id = ev.appId {
                     TrustedCapabilities.shared.trust(appId: id, module: ev.module)
                 }
+                PendingCapabilityStore.shared.resume(appId: ev.appId, module: ev.module)
             } : nil
         )
     }

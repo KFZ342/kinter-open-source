@@ -30,6 +30,7 @@ final class SecurityMode {
                 SessionSeed.startNewSession()
                 TraceRecorder.shared.beginSession()
             } else {
+                PendingCapabilityStore.shared.drain()
                 TraceRecorder.shared.endSession()
             }
             NotificationCenter.default.post(name: .securityModeDidChange, object: newValue)

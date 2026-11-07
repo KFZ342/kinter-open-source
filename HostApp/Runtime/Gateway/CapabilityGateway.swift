@@ -52,7 +52,21 @@ final class CapabilityGateway {
             appId: manifest.appId, appName: manifest.name) {
         case .allow:
             break
-        case .denyGrantable, .denyHard:
+        case .denyGrantable(_, _):
+            // 挂起这次调用：用户点「允许本次」后原样重放，不用回小程序再操作一次
+            PendingCapabilityStore.shared.park(
+                appId: manifest.appId,
+                module: module,
+                method: method,
+                run: { [weak self] in
+                    self?.invoke(module: module, method: method,
+                                 params: params, completion: completion)
+                },
+                fail: {
+                    finish(.failure(.permissionDenied(module)))
+                })
+            return
+        case .denyHard:
             return finish(.failure(.permissionDenied(module)))
         }
 

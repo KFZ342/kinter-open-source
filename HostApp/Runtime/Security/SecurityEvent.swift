@@ -8,6 +8,8 @@ struct SecurityEvent {
     let appId: String?
     let appName: String?
     let timestamp: Date
+    /// 被拦的具体原因（组合规则等），nil 表示普通拦截
+    var reason: String? = nil
     /// 被拦时的中文描述，如 "相机"
     var displayName: String { SecurityMode.displayName(for: module) }
 
@@ -65,4 +67,78 @@ extension Notification.Name {
     static let securityCapabilityBlocked = Notification.Name("kinter.security.blocked")
     /// 敏感能力被放行（一次性授权），object = SecurityEvent
     static let securityCapabilityGranted = Notification.Name("kinter.security.granted")
+}
+
+// MARK: - 挂起队列
+
+/// 被安全模式拦下后「挂起」的能力调用。
+///
+/// 以前的做法是：网关立刻回 permission_denied，用户点「允许本次」后要自己回小程序再点一遍。
+/// 现在把这次调用留在这里等 45 秒，用户一按按钮就原样重放——按钮按完，事情就做完了。
+final class PendingCapabilityStore {
+    static let shared = PendingCapabilityStore()
+    private init() {}
+
+    private struct Entry {
+        let id = UUID()
+        let appId: String?
+        let module: String
+        let method: String
+        let run: () -> Void
+        let fail: () -> Void
+    }
+
+    private var entries: [Entry] = []
+    private let lock = NSLock()
+    /// 等用户点击的上限；超过就明确失败，不让 JS 一直挂着
+    private let ttl: TimeInterval = 45
+    /// 挂起上限：再多就不是"用户在操作"，而是有人在刷接口
+    private let capacity = 32
+
+    func park(appId: String?, module: String, method: String,
+              run: @escaping () -> Void, fail: @escaping () -> Void) {
+        let entry = Entry(appId: appId, module: module, method: method, run: run, fail: fail)
+        lock.lock()
+        // 同一能力的同一方法已在排队：合并，避免一次授权连开两个相机
+        if entries.contains(where: { $0.appId == appId && $0.module == module && $0.method == method }) {
+            lock.unlock()
+            return
+        }
+        if entries.count >= capacity {
+            lock.unlock()
+            fail()
+            return
+        }
+        entries.append(entry)
+        lock.unlock()
+        DispatchQueue.main.asyncAfter(deadline: .now() + ttl) { [weak self] in
+            self?.expire(entry.id)
+        }
+    }
+
+    /// 用户放行后重放本能力的全部挂起请求。
+    func resume(appId: String?, module: String) {
+        lock.lock()
+        let matched = entries.filter { $0.appId == appId && $0.module == module }
+        entries.removeAll { $0.appId == appId && $0.module == module }
+        lock.unlock()
+        for e in matched { e.run() }
+    }
+
+    /// 关闭安全模式 / 切会话时丢弃全部挂起请求，并给调用方一个明确失败。
+    func drain() {
+        lock.lock()
+        let all = entries
+        entries.removeAll()
+        lock.unlock()
+        all.forEach { $0.fail() }
+    }
+
+    private func expire(_ id: UUID) {
+        lock.lock()
+        guard let i = entries.firstIndex(where: { $0.id == id }) else { lock.unlock(); return }
+        let e = entries.remove(at: i)
+        lock.unlock()
+        e.fail()
+    }
 }
