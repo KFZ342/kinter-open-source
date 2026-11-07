@@ -67,6 +67,7 @@ enum PackageInspector {
                 case .critical: sensitive.append(cap)
                 case .standard: standard.append(cap)
                 case .network:  normal.append(cap)
+                case .benign:   normal.append(cap)
                 }
             } else {
                 normal.append(cap)
