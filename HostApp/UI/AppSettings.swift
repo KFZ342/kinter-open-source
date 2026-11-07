@@ -85,6 +85,12 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "settings.requireDeveloperSignature") }
     }
 
+    /// 开发模式：允许手动信任自签名包。默认关，正式分发必须关。
+    var allowSelfSignedApps: Bool {
+        get { defaults.object(forKey: "settings.allowSelfSignedApps") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "settings.allowSelfSignedApps") }
+    }
+
     /// 是否允许小程序读取当前登录账号的公开信息
     var allowAppsAccessAccount: Bool {
         get { defaults.object(forKey: "settings.allowAppsAccessAccount") as? Bool ?? true }

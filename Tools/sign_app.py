@@ -5,7 +5,11 @@
   1. 收集包里的代码与清单文本
   2. 调第三方模型（OpenAI 兼容 /chat/completions）判断是否安全
   3. 不通过 → 拒绝签名，打印风险点
-  4. 通过 → 生成「安全审查记录」，用 Ed25519 给「整包摘要 + 审查记录」签名
+  4. 通过 → 用根私钥签发开发者证书（证书里含模型审查结论）
+  5. 用开发者私钥给整包摘要签名，把证书一起写进 signature.json
+
+宿主内置根公钥。没有根私钥的人签出来的包只能算「自签名」，
+正式模式下会被当成「未受验证的开发者」挡住——所以证书无法伪造。
 
 
 用法：
@@ -40,7 +44,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SIG_FILE = "signature.json"
 CONFIG_DIR = os.path.expanduser("~/.kinter")
@@ -147,6 +151,30 @@ def verify_self(key_path: str, digest: bytes, sig: bytes):
     finally:
         os.unlink(d)
         os.unlink(s)
+
+
+def ca_key_path(args=None):
+    if args and args.ca_key:
+        return os.path.expanduser(args.ca_key)
+    env = os.environ.get("KINTER_CA_KEY")
+    if env:
+        return os.path.expanduser(env)
+    return os.path.expanduser("~/.kinter/ca/root_ed25519.pem")
+
+
+def init_ca(path):
+    if os.path.exists(path):
+        raise SystemExit(f"根私钥已存在：{path}")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    run(["openssl", "genpkey", "-algorithm", "ED25519", "-out", path])
+    os.chmod(path, 0o600)
+    with open(path + ".pub", "wb") as f:
+        f.write(run(["openssl", "pkey", "-in", path, "-pubout", "-outform", "DER"]).stdout)
+    raw = raw_public_key(path)
+    print(f"根私钥：{path}（只有这一份，丢了就再也签不出可信证书）")
+    print(f"根公钥 base64：{base64.b64encode(raw).decode()}")
+    print("把它写进 HostApp/Core/Package/PackageInspector.swift 的")
+    print("PackageSignature.Anchor.publicKeyBase64，重新构建 App，这个根才被认。")
 
 
 def load_config():
@@ -267,14 +295,27 @@ def parse_verdict(content):
 
 def main():
     ap = argparse.ArgumentParser(description="Kinter 小程序开发者签名")
-    ap.add_argument("app_dir", help="小程序目录（含 manifest.json）")
+    ap.add_argument("app_dir", nargs="?", help="小程序目录（含 manifest.json）")
     ap.add_argument("--developer", required=True, help="开发者标识，如 com.example.dev")
     ap.add_argument("--key", default="dev_ed25519.pem", help="Ed25519 私钥路径")
     ap.add_argument("--api-base", help="第三方模型 API 地址（OpenAI 兼容）")
     ap.add_argument("--api-key", help="模型 API Key")
     ap.add_argument("--model", help="模型名")
+    ap.add_argument("--ca-key", help="根私钥路径（默认 ~/.kinter/ca/root_ed25519.pem）")
+    ap.add_argument("--days", type=int, default=365, help="证书有效期（天）")
+    ap.add_argument("--init-ca", action="store_true", help="只生成根密钥，不签名")
     args = ap.parse_args()
 
+    ca_path = ca_key_path(args)
+    if args.init_ca:
+        init_ca(ca_path)
+        return
+
+    if not os.path.exists(ca_path):
+        raise SystemExit(f"找不到根私钥：{ca_path}\n先运行：python3 Tools/sign_app.py --init-ca")
+
+    if not args.app_dir:
+        raise SystemExit("要签哪个包？把应用目录传进来")
     app_dir = os.path.abspath(args.app_dir)
     if not os.path.isdir(app_dir):
         raise SystemExit(f"目录不存在：{app_dir}")
@@ -304,22 +345,33 @@ def main():
         raise SystemExit(2)
     print(f"审查通过：{summary}")
 
-    # 2) 审查记录本身也要签名，防止装完之后被改
-    review_payload = json.dumps({
-        "kind": "kinter-model-review",
-        "model": model,
-        "apiBase": base,
-        "verdict": "safe",
-        "risk": risk or "low",
-        "summary": summary,
-        "findings": findings,
-        "packageDigest": digest.hex(),
-        "reviewedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-    }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    review_sig = sign_digest(args.key, hashlib.sha256(review_payload.encode("utf-8")).digest())
-    verify_self(args.key, hashlib.sha256(review_payload.encode("utf-8")).digest(), review_sig)
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    expires = now + timedelta(days=args.days)
 
-    # 3) 签整包摘要（分发证书 = 签名 + 审查记录）
+    # 2) 根私钥签发开发者证书：把「谁」「哪把 key」「哪个包」「审查结论」绑在一起
+    cert = {
+        "kind": "kinter-developer-certificate",
+        "version": 1,
+        "rootKeyId": "root-1",
+        "developerId": args.developer,
+        "publicKey": base64.b64encode(raw_public_key(args.key)).decode(),
+        "packageDigest": digest.hex(),
+        "issuedAt": now.isoformat().replace("+00:00", "Z"),
+        "expiresAt": expires.isoformat().replace("+00:00", "Z"),
+        "review": {
+            "model": model,
+            "verdict": "safe",
+            "risk": risk or "low",
+            "summary": summary,
+            "findings": findings,
+        },
+    }
+    cert_text = json.dumps(cert, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    cert_digest = hashlib.sha256(cert_text.encode("utf-8")).digest()
+    cert_sig = sign_digest(ca_path, cert_digest)
+    verify_self(ca_path, cert_digest, cert_sig)
+
+    # 3) 开发者私钥签整包摘要
     sig = sign_digest(args.key, digest)
     verify_self(args.key, digest, sig)
 
@@ -329,8 +381,8 @@ def main():
         "publicKey": base64.b64encode(raw_public_key(args.key)).decode(),
         "signature": base64.b64encode(sig).decode(),
         "signedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "review": review_payload,
-        "reviewSignature": base64.b64encode(review_sig).decode(),
+        "certificate": cert_text,
+        "certificateSignature": base64.b64encode(cert_sig).decode(),
     }
     out = os.path.join(app_dir, SIG_FILE)
     with open(out, "w", encoding="utf-8") as f:
@@ -339,7 +391,8 @@ def main():
     print(f"开发者：{args.developer}")
     print(f"摘要：{digest.hex()}")
     print(f"审查：{summary}（{model}）")
-    print("重新打包 ZIP 后导入。首次打开会问是否信任这位开发者，点「信任并打开」即可。")
+    print(f"证书：{args.developer}，有效期到 {cert['expiresAt']}（根 {ca_path}）")
+    print("重新打包 ZIP 后导入。证书链到宿主内置的根，打开时直接放行，不再问信任。")
 
 
 if __name__ == "__main__":

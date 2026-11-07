@@ -37,26 +37,18 @@ enum MiniAppLauncher {
                 switch status {
                 case .unenforced, .firstParty:
                     onPass()
+                case .verified(let developerId, let reviewNote):
+                    if let note = reviewNote {
+                        NSLog("[Signature] \(app.name) 已验证：\(developerId)；\(note)")
+                    }
+                    onPass()
                 case .trusted(_):
                     onPass()
-                case .untrusted(let developerId, let publicKey, let reviewNote):
-                    var text = "「\(app.name)」的签名有效，但开发者 \(developerId) 还没有被这台设备信任。"
-                    if let note = reviewNote, !note.isEmpty {
-                        text += "\n\n\(note)。"
-                    }
-                    text += "\n\nApp暂时无法打开。"
-                    let alert = UIAlertController(
-                        title: "未受验证的开发者",
-                        message: text, 
-                        preferredStyle: .alert
-                    )
-                    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-                    alert.addAction(UIAlertAction(title: "信任并打开", style: .default) { _ in
-                        TrustedDevelopers.shared.trust(developerId: developerId,
-                                                       publicKey: publicKey)
-                        onPass()
-                    })
-                    present(alert, from: presentingVC)
+                case .selfSigned(let developerId, let publicKey):
+                    // 自签名只在开发模式里给一次机会；正式模式直接挡
+                    handleSelfSigned(app: app, developerId: developerId,
+                                      publicKey: publicKey,
+                                      from: presentingVC, onPass: onPass)
                 case .unsigned:
                     blockedAlert(app: app,
                                  detail: "安装包里没有开发者签名，宿主无法确认它是谁做的。",
@@ -68,6 +60,35 @@ enum MiniAppLauncher {
                 }
             }
         }
+    }
+
+    private static func handleSelfSigned(app: InstalledApp,
+                                          developerId: String,
+                                          publicKey: String,
+                                          from presentingVC: UIViewController?,
+                                          onPass: @escaping () -> Void) {
+        guard AppSettings.shared.allowSelfSignedApps else {
+            blockedAlert(app: app,
+                         detail: "签名有效，但没有可信根证书签发。签名只能证明包没被换过，证明不了开发者是谁。",
+                         from: presentingVC)
+            return
+        }
+        guard !TrustedDevelopers.shared.isTrusted(developerId: developerId,
+                                                  publicKey: publicKey) else {
+            onPass()
+            return
+        }
+        let alert = UIAlertController(
+            title: "开发模式：未受验证的开发者",
+            message: "「\(app.name)」是自签名包，开发者 \(developerId) 没有根证书。\n\n当前开着开发模式，可以手动信任这一把公钥。正式分发请关掉。",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "信任并打开", style: .default) { _ in
+            TrustedDevelopers.shared.trust(developerId: developerId, publicKey: publicKey)
+            onPass()
+        })
+        present(alert, from: presentingVC)
     }
 
     // MARK: - 内部

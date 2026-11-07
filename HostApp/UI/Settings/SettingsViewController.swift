@@ -36,7 +36,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         switch section {
         case 0: return 1              // 账号
         case 1: return 2              // 安全模式：开关 + 隐私记录入口
-        case 2: return 2              // 开发者签名：开关 + 信任名单
+        case 2: return 3              // 开发者签名：要求签名 + 开发模式 + 信任名单
         default: return 1             // 关于
         }
     }
@@ -50,7 +50,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         if section == 2 {
-            return "打开应用前重新校验开发者签名。没签名或签名对不上的包会被挡住，提示「未受验证的开发者，App暂时无法打开」。宿主自带和本机 AI 生成的应用不受影响。"
+            return "打开应用前重新校验签名与开发者证书。没签名、签名对不上、或证书不是内置根签发的包都会被挡住，提示「未受验证的开发者，App暂时无法打开」。宿主自带和本机 AI 生成的应用不受影响。"
         }
         guard section == 1 else { return nil }
         let all = CapabilityRegistry.shared.allCapabilities()
@@ -119,6 +119,13 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                 sw.isOn = AppSettings.shared.requireDeveloperSignature
                 sw.addTarget(self, action: #selector(toggleRequireSignature(_:)), for: .valueChanged)
                 cell.accessoryView = sw
+            } else if indexPath.row == 1 {
+                cell.textLabel?.text = "允许自签名（开发模式）"
+                cell.textLabel?.textColor = .label
+                let sw = UISwitch()
+                sw.isOn = AppSettings.shared.allowSelfSignedApps
+                sw.addTarget(self, action: #selector(toggleSelfSigned(_:)), for: .valueChanged)
+                cell.accessoryView = sw
             } else {
                 let count = TrustedDevelopers.shared.count
                 cell.textLabel?.text = "信任名单"
@@ -150,9 +157,15 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             navigationController?.pushViewController(PrivacyReportViewController(), animated: true)
             return
         }
-        if indexPath.section == 2, indexPath.row == 1 {
+        if indexPath.section == 2, indexPath.row == 2 {
             clearTrustedDevelopers()
         }
+    }
+
+    @objc private func toggleSelfSigned(_ sw: UISwitch) {
+        AppSettings.shared.allowSelfSignedApps = sw.isOn
+        HostPopup.toast(sw.isOn ? "开发模式：自签名包可以手动信任"
+                                : "已关闭：只认根证书签发的应用")
     }
 
     @objc private func toggleRequireSignature(_ sw: UISwitch) {

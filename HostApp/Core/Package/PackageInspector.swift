@@ -104,10 +104,12 @@ enum PackageSignature {
         case unenforced
         /// 宿主自带 / 本机生成
         case firstParty
-        /// 签名有效，且开发者已在本机信任名单
+        /// 证书链到内置根、包摘要对得上、未过期——真正的「已验证开发者」
+        case verified(developerId: String, reviewNote: String?)
+        /// 签名有效，但开发者已在本机信任名单（仅开发模式会走到）
         case trusted(developerId: String)
-        /// 签名有效，但开发者没被信任。reviewNote 是第三方模型审查结论（可为空）
-        case untrusted(developerId: String, publicKeyBase64: String, reviewNote: String?)
+        /// 自签名：签名有效，但没有根证书签发，身份不可信
+        case selfSigned(developerId: String, publicKeyBase64: String)
         /// 没有 signature.json
         case unsigned
         /// 有签名但校验不过（文件被改、公钥/签名格式错误）
@@ -124,8 +126,38 @@ enum PackageSignature {
         let signedAt: String?
         /// 第三方模型安全审查记录（一段 JSON 字符串，字节原样参与验签）
         let review: String?
-        /// 对 review 的 sha256 做的签名
+        /// 对 review 的 sha256 做的签名（v1.4.0 的旧字段，新包不再使用）
         let reviewSignature: String?
+        /// 根密钥签发的开发者证书（一段 JSON 原文，字节原样参与验签）
+        let certificate: String?
+        /// 根密钥对 certificate 原文 sha256 的签名
+        let certificateSignature: String?
+    }
+
+    /// 根证书签发的内容
+    struct Certificate: Decodable {
+        let kind: String
+        let version: Int
+        let rootKeyId: String
+        let developerId: String
+        let publicKey: String
+        let packageDigest: String
+        let issuedAt: String?
+        let expiresAt: String?
+        let review: CertReview?
+    }
+
+    struct CertReview: Decodable {
+        let model: String?
+        let verdict: String?
+        let risk: String?
+        let summary: String?
+    }
+
+    /// 内置信任根。换根 = 换这一行 + 重新发证书。
+    enum Anchor {
+        static let keyId = "root-1"
+        static let publicKeyBase64 = "UFfiHqYVjdB1VgSizmXzmE4yvjj7geCHMM6QnNU7npM="
     }
 
     /// review 里给用户看的那几项
@@ -162,30 +194,57 @@ enum PackageSignature {
             return .invalid("签名与本机文件不匹配，安装包可能被改动过")
         }
 
-        // 审查记录跟着签名一起防篡改：改了记录，签名对不上
+        // 包签名只能证明「是这个 key 签的」；根证书才能证明「这个 key 是谁」。
+        guard let certText = file.certificate else {
+            return .selfSigned(developerId: file.developerId,
+                               publicKeyBase64: file.publicKey)
+        }
+        guard let certSigB64 = file.certificateSignature,
+              let certSig = Data(base64Encoded: certSigB64),
+              let certData = certText.data(using: .utf8),
+              let cert = try? JSONDecoder().decode(Certificate.self, from: certData) else {
+            return .invalid("开发者证书格式不对")
+        }
+        guard cert.kind == "kinter-developer-certificate",
+              cert.rootKeyId == Anchor.keyId,
+              let anchorRaw = Data(base64Encoded: Anchor.publicKeyBase64),
+              let anchor = try? Curve25519.Signing.PublicKey(rawRepresentation: anchorRaw) else {
+            return .invalid("不认识的根证书")
+        }
+        let certDigest = SHA256.hash(data: certData)
+        guard anchor.isValidSignature(certSig, for: Data(certDigest)) else {
+            return .invalid("开发者证书验签失败")
+        }
+        // 证书绑的必须就是本包、本 key、本开发者——换个包或换把 key 都过不去
+        guard cert.publicKey == file.publicKey,
+              cert.developerId == file.developerId else {
+            return .invalid("证书与本包信息不一致")
+        }
+        guard cert.packageDigest == hexString(digest) else {
+            return .invalid("证书绑定的包摘要对不上，包被换过")
+        }
+        guard notExpired(cert.expiresAt) else {
+            return .invalid("开发者证书已过期")
+        }
         var reviewNote: String?
-        if let payload = file.review, let sigB64 = file.reviewSignature {
-            guard let reviewSig = Data(base64Encoded: sigB64) else {
-                return .invalid("安全审查记录格式不对")
-            }
-            let reviewDigest = SHA256.hash(data: Data(payload.utf8))
-            guard key.isValidSignature(reviewSig, for: Data(reviewDigest)) else {
-                return .invalid("安全审查记录被改动过")
-            }
-            if let data = payload.data(using: .utf8),
-               let record = try? JSONDecoder().decode(ReviewRecord.self, from: data) {
-                let summary = record.summary?.isEmpty == false ? record.summary! : "通过"
-                reviewNote = "第三方模型（\(record.model)）审查：\(summary)"
-            }
+        if let r = cert.review, let model = r.model {
+            let summary = (r.summary?.isEmpty == false) ? r.summary! : "通过"
+            reviewNote = "第三方模型（\(model)）审查：\(summary)"
         }
+        return .verified(developerId: cert.developerId, reviewNote: reviewNote)
+    }
 
-        if TrustedDevelopers.shared.isTrusted(developerId: file.developerId,
-                                              publicKey: file.publicKey) {
-            return .trusted(developerId: file.developerId)
-        }
-        return .untrusted(developerId: file.developerId,
-                          publicKeyBase64: file.publicKey,
-                          reviewNote: reviewNote)
+    static func hexString(_ data: Data) -> String {
+        data.map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func notExpired(_ iso: String?) -> Bool {
+        // 没写有效期 = 长期有效
+        guard let iso = iso else { return true }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        guard let date = f.date(from: iso) else { return false }
+        return date > Date()
     }
 
     /// 计算包摘要。规则必须与 `Tools/sign_app.py` 完全一致。
