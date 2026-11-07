@@ -1,6 +1,6 @@
 import UIKit
 
-/// 设置界面：账号、安全模式、关于。
+/// 设置界面：账号、安全模式、开发者签名、关于。
 final class SettingsViewController: UIViewController {
 
     private let table = UITableView(frame: .zero, style: .insetGrouped)
@@ -21,15 +21,22 @@ final class SettingsViewController: UIViewController {
             table.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // 信任名单可能在小程序打开时被加过
+        table.reloadData()
+    }
 }
 
 extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int { 3 }
+    func numberOfSections(in tableView: UITableView) -> Int { 4 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 1              // 账号
         case 1: return 2              // 安全模式：开关 + 隐私记录入口
+        case 2: return 2              // 开发者签名：开关 + 信任名单
         default: return 1             // 关于
         }
     }
@@ -42,6 +49,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        if section == 2 {
+            return "打开应用前重新校验开发者签名。没签名或签名对不上的包会被挡住，提示「未受验证的开发者，App暂时无法打开」。宿主自带和本机 AI 生成的应用不受影响。"
+        }
         guard section == 1 else { return nil }
         let all = CapabilityRegistry.shared.allCapabilities()
         guard !all.isEmpty else { return nil }
@@ -55,6 +65,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         switch section {
         case 0: return "账号"
         case 1: return "安全模式"
+        case 2: return "开发者签名"
         default: return "关于"
         }
     }
@@ -98,7 +109,31 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                 cell.accessoryType = .disclosureIndicator
             }
 
+        case 2:
+            cell.accessoryType = .none
+            cell.accessoryView = nil
+            if indexPath.row == 0 {
+                cell.textLabel?.text = "要求开发者签名"
+                cell.textLabel?.textColor = .label
+                let sw = UISwitch()
+                sw.isOn = AppSettings.shared.requireDeveloperSignature
+                sw.addTarget(self, action: #selector(toggleRequireSignature(_:)), for: .valueChanged)
+                cell.accessoryView = sw
+            } else {
+                let count = TrustedDevelopers.shared.count
+                cell.textLabel?.text = "信任名单"
+                cell.textLabel?.textColor = count > 0 ? .label : .secondaryLabel
+                let n = UILabel()
+                n.font = .systemFont(ofSize: 14)
+                n.text = count > 0 ? "\(count) 位开发者" : "空"
+                n.textColor = .secondaryLabel
+                n.sizeToFit()
+                cell.accessoryView = n
+                cell.accessoryType = count > 0 ? .disclosureIndicator : .none
+            }
+
         default:
+            cell.accessoryView = nil
             cell.textLabel?.text = "Kinter \(Self.versionText)"
             cell.textLabel?.textColor = .secondaryLabel
         }
@@ -113,7 +148,38 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         }
         if indexPath.section == 1, indexPath.row == 1 {
             navigationController?.pushViewController(PrivacyReportViewController(), animated: true)
+            return
         }
+        if indexPath.section == 2, indexPath.row == 1 {
+            clearTrustedDevelopers()
+        }
+    }
+
+    @objc private func toggleRequireSignature(_ sw: UISwitch) {
+        AppSettings.shared.requireDeveloperSignature = sw.isOn
+        HostPopup.toast(sw.isOn ? "已要求开发者签名：未签名的应用将无法打开"
+                                : "已关闭签名校验：未签名的应用也能打开")
+    }
+
+    private func clearTrustedDevelopers() {
+        let count = TrustedDevelopers.shared.count
+        guard count > 0 else { return }
+        let alert = UIAlertController(
+            title: "清除信任名单？",
+            message: "清除后，这 \(count) 位开发者的应用需要重新确认「信任并打开」。",
+            preferredStyle: .actionSheet
+        )
+        alert.addAction(UIAlertAction(title: "清除", style: .destructive) { _ in
+            TrustedDevelopers.shared.revokeAll()
+            self.table.reloadData()
+            HostPopup.toast("信任名单已清空")
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let pop = alert.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        }
+        present(alert, animated: true)
     }
 
     @objc private func toggleSecurityMode(_ sw: UISwitch) {

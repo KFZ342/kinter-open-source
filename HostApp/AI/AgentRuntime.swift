@@ -1125,6 +1125,7 @@ final class AgentRuntime {
             disabledCapabilities: [],
             iconFileName: hasIcon ? "icon.png" : nil,
             isAIGenerated: true,
+            isFirstParty: true,
             generationPrompt: lastPrompt
         )
         let dest = installed.directory

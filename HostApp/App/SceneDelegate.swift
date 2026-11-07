@@ -59,12 +59,14 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // 记录参数，供小程序启动后读取
         MiniAppLauncher.pendingParams[appId] = params ?? [:]
 
-        // 延迟一点，确保 window 已经就绪
+        // 延迟一点，确保 window 已经就绪；未签名的包在启动路径上也拦
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             guard let root = self.window?.rootViewController else { return }
-            let runner = MiniAppRunnerController(app: app)
-            runner.modalPresentationStyle = .fullScreen
-            root.present(runner, animated: true)
+            MiniAppLauncher.ensureVerified(app: app, from: root) {
+                let runner = MiniAppRunnerController(app: app)
+                runner.modalPresentationStyle = .fullScreen
+                root.presentSafely(runner, animated: true)
+            }
         }
     }
 }

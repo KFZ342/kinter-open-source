@@ -759,6 +759,7 @@ li{font-size:14.5px;line-height:1.65;color:var(--2nd);margin-bottom:9px}
                                disabledCapabilities: base.disabledCapabilities,
                                iconFileName: base.iconFileName,
                                isAIGenerated: base.isAIGenerated,
+                               isFirstParty: true,
                                generationPrompt: base.generationPrompt,
                                price: base.price,
                                paid: base.paid,
@@ -776,6 +777,7 @@ li{font-size:14.5px;line-height:1.65;color:var(--2nd);margin-bottom:9px}
                                installedAt: Date(),
                                category: demo.category,
                                disabledCapabilities: [],
+                               isFirstParty: true,
                                iconSymbol: demo.iconSymbol,
                                iconColor: demo.iconColor)
         }

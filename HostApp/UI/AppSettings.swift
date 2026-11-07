@@ -78,6 +78,13 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: Key.showWarnings) }
     }
 
+    /// 打开应用前是否要求开发者签名。
+    /// 默认开：没签名 / 签名被改过的包点开时提示「未受验证的开发者，App暂时无法打开」。
+    var requireDeveloperSignature: Bool {
+        get { defaults.object(forKey: "settings.requireDeveloperSignature") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "settings.requireDeveloperSignature") }
+    }
+
     /// 是否允许小程序读取当前登录账号的公开信息
     var allowAppsAccessAccount: Bool {
         get { defaults.object(forKey: "settings.allowAppsAccessAccount") as? Bool ?? true }

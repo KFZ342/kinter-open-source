@@ -646,6 +646,7 @@ final class AIGenerateViewController: UIViewController {
             disabledCapabilities: [],
             iconFileName: hasIcon ? "icon.png" : nil,
             isAIGenerated: true,
+            isFirstParty: true,
             generationPrompt: descField.text?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         let dest = installed.directory

@@ -93,12 +93,15 @@ final class LibraryViewController: UIViewController {
     }
 
     private func showMultiTaskMenu(_ app: InstalledApp) {
-        AppSettings.shared.lastOpenedAppId = app.appId
-        AppLibrary.shared.recordLaunch(appId: app.appId)
-        let vc = WindowManagerViewController()
-        vc.modalPresentationStyle = .fullScreen
-        present(vc, animated: true) {
-            vc.addApp(app)
+        MiniAppLauncher.ensureVerified(app: app, from: self) { [weak self] in
+            guard let self = self else { return }
+            AppSettings.shared.lastOpenedAppId = app.appId
+            AppLibrary.shared.recordLaunch(appId: app.appId)
+            let vc = WindowManagerViewController()
+            vc.modalPresentationStyle = .fullScreen
+            self.present(vc, animated: true) {
+                vc.addApp(app)
+            }
         }
     }
 

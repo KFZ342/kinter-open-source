@@ -14,6 +14,8 @@ struct InstalledApp: Codable, Identifiable, Equatable {
     var iconFileName: String?
     /// 是否由 AI 生成
     var isAIGenerated: Bool = false
+    /// 宿主自带（示例应用）或本机生成（AI 小程序）：不走开发者签名校验
+    var isFirstParty: Bool = false
     /// AI 生成时的原始描述，用于后续迭代
     var generationPrompt: String?
     /// 售价（元）。nil / 0 = 免费小程序
@@ -84,6 +86,7 @@ struct InstalledApp: Codable, Identifiable, Equatable {
     init(appId: String, name: String, version: String, installedAt: Date,
          category: String, disabledCapabilities: Set<String>,
          iconFileName: String? = nil, isAIGenerated: Bool = false,
+         isFirstParty: Bool = false,
          generationPrompt: String? = nil, price: Double? = nil,
          paid: Bool = true, isFavorite: Bool = false, rating: Int = 0,
          launchCount: Int = 0, lastOpenedAt: Date? = nil,
@@ -97,6 +100,7 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         self.disabledCapabilities = disabledCapabilities
         self.iconFileName = iconFileName
         self.isAIGenerated = isAIGenerated
+        self.isFirstParty = isFirstParty
         self.generationPrompt = generationPrompt
         self.price = price
         self.paid = paid
@@ -113,7 +117,7 @@ struct InstalledApp: Codable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey {
         case appId, name, version, installedAt, category
         case disabledCapabilities, iconFileName
-        case isAIGenerated, generationPrompt, price, paid
+        case isAIGenerated, isFirstParty, generationPrompt, price, paid
         case isFavorite, rating, launchCount, lastOpenedAt, totalUsageSeconds
         case iconSymbol, iconColor
     }
@@ -128,6 +132,7 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         disabledCapabilities = (try? c.decode(Set<String>.self, forKey: .disabledCapabilities)) ?? []
         iconFileName = try? c.decodeIfPresent(String.self, forKey: .iconFileName)
         isAIGenerated = (try? c.decode(Bool.self, forKey: .isAIGenerated)) ?? false
+        isFirstParty = (try? c.decode(Bool.self, forKey: .isFirstParty)) ?? false
         generationPrompt = try? c.decodeIfPresent(String.self, forKey: .generationPrompt)
         price = try? c.decodeIfPresent(Double.self, forKey: .price)
         paid = (try? c.decode(Bool.self, forKey: .paid)) ?? (price == nil)
