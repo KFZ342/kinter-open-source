@@ -97,4 +97,77 @@ final class AppLibrary {
             persist()
         }
     }
+
+    // MARK: - 收藏 / 评分 / 使用统计
+
+    /// 设置收藏状态
+    func setFavorite(_ favorite: Bool, for appId: String) {
+        queue.sync {
+            guard let i = apps.firstIndex(where: { $0.appId == appId }) else { return }
+            apps[i].isFavorite = favorite
+            persist()
+        }
+        notifyChange()
+    }
+
+    /// 切换收藏，返回切换后的状态
+    @discardableResult
+    func toggleFavorite(appId: String) -> Bool {
+        var now = false
+        queue.sync {
+            guard let i = apps.firstIndex(where: { $0.appId == appId }) else { return }
+            apps[i].isFavorite.toggle()
+            now = apps[i].isFavorite
+            persist()
+        }
+        notifyChange()
+        return now
+    }
+
+    /// 设置评分（0-5，0 表示清除评分）
+    func setRating(_ rating: Int, for appId: String) {
+        let clamped = max(0, min(5, rating))
+        queue.sync {
+            guard let i = apps.firstIndex(where: { $0.appId == appId }) else { return }
+            apps[i].rating = clamped
+            persist()
+        }
+        notifyChange()
+    }
+
+    /// 记录一次打开
+    func recordLaunch(appId: String) {
+        queue.sync {
+            guard let i = apps.firstIndex(where: { $0.appId == appId }) else { return }
+            apps[i].launchCount += 1
+            apps[i].lastOpenedAt = Date()
+            persist()
+        }
+    }
+
+    /// 累计使用时长（秒）
+    func addUsage(appId: String, seconds: TimeInterval) {
+        guard seconds > 0 else { return }
+        queue.sync {
+            guard let i = apps.firstIndex(where: { $0.appId == appId }) else { return }
+            apps[i].totalUsageSeconds += seconds
+            persist()
+        }
+    }
+
+    /// 收藏的应用（按名称排序）
+    var favoriteApps: [InstalledApp] {
+        apps.filter { $0.isFavorite }.sorted { $0.name < $1.name }
+    }
+
+    /// 全库累计打开次数
+    var totalLaunchCount: Int {
+        apps.reduce(0) { $0 + $1.launchCount }
+    }
+
+    private func notifyChange() {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .appLibraryDidChange, object: nil)
+        }
+    }
 }

@@ -20,6 +20,20 @@ struct InstalledApp: Codable, Identifiable, Equatable {
     var price: Double?
     /// 是否已购买（付费小程序）。免费小程序恒为 true
     var paid: Bool = true
+    /// 用户收藏
+    var isFavorite: Bool = false
+    /// 用户评分 0-5（0 = 未评分）
+    var rating: Int = 0
+    /// 打开次数
+    var launchCount: Int = 0
+    /// 最近一次打开时间
+    var lastOpenedAt: Date?
+    /// 累计使用时长（秒）
+    var totalUsageSeconds: Double = 0
+    /// SF Symbol 图标名（manifest.iconSymbol），无需图标文件即可显示图标
+    var iconSymbol: String?
+    /// 图标底色（manifest.iconColor，十六进制字符串，如 "#FF6B6B"）
+    var iconColor: String?
 
     var id: String { appId }
 
@@ -71,7 +85,10 @@ struct InstalledApp: Codable, Identifiable, Equatable {
          category: String, disabledCapabilities: Set<String>,
          iconFileName: String? = nil, isAIGenerated: Bool = false,
          generationPrompt: String? = nil, price: Double? = nil,
-         paid: Bool = true) {
+         paid: Bool = true, isFavorite: Bool = false, rating: Int = 0,
+         launchCount: Int = 0, lastOpenedAt: Date? = nil,
+         totalUsageSeconds: Double = 0, iconSymbol: String? = nil,
+         iconColor: String? = nil) {
         self.appId = appId
         self.name = name
         self.version = version
@@ -83,6 +100,13 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         self.generationPrompt = generationPrompt
         self.price = price
         self.paid = paid
+        self.isFavorite = isFavorite
+        self.rating = rating
+        self.launchCount = launchCount
+        self.lastOpenedAt = lastOpenedAt
+        self.totalUsageSeconds = totalUsageSeconds
+        self.iconSymbol = iconSymbol
+        self.iconColor = iconColor
     }
 
     // 容错解码：旧 library.json 没有 isAIGenerated / generationPrompt / price / paid 字段
@@ -90,6 +114,8 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         case appId, name, version, installedAt, category
         case disabledCapabilities, iconFileName
         case isAIGenerated, generationPrompt, price, paid
+        case isFavorite, rating, launchCount, lastOpenedAt, totalUsageSeconds
+        case iconSymbol, iconColor
     }
 
     init(from decoder: Decoder) throws {
@@ -105,5 +131,33 @@ struct InstalledApp: Codable, Identifiable, Equatable {
         generationPrompt = try? c.decodeIfPresent(String.self, forKey: .generationPrompt)
         price = try? c.decodeIfPresent(Double.self, forKey: .price)
         paid = (try? c.decode(Bool.self, forKey: .paid)) ?? (price == nil)
+        isFavorite = (try? c.decode(Bool.self, forKey: .isFavorite)) ?? false
+        rating = (try? c.decode(Int.self, forKey: .rating)) ?? 0
+        launchCount = (try? c.decode(Int.self, forKey: .launchCount)) ?? 0
+        lastOpenedAt = try? c.decodeIfPresent(Date.self, forKey: .lastOpenedAt)
+        totalUsageSeconds = (try? c.decode(Double.self, forKey: .totalUsageSeconds)) ?? 0
+        iconSymbol = try? c.decodeIfPresent(String.self, forKey: .iconSymbol)
+        iconColor = try? c.decodeIfPresent(String.self, forKey: .iconColor)
+    }
+
+    /// 评分星级文案，如 "★★★★☆"；未评分返回 nil
+    var ratingStars: String? {
+        guard rating > 0 else { return nil }
+        let n = max(0, min(5, rating))
+        return String(repeating: "★", count: n) + String(repeating: "☆", count: 5 - n)
+    }
+
+    /// 使用统计摘要，如 "打开 12 次 · 累计 1 小时 20 分"
+    var usageSummary: String {
+        var parts = ["打开 \(launchCount) 次"]
+        if totalUsageSeconds >= 60 {
+            let minutes = Int(totalUsageSeconds) / 60
+            if minutes >= 60 {
+                parts.append("累计 \(minutes / 60) 小时 \(minutes % 60) 分")
+            } else {
+                parts.append("累计 \(minutes) 分")
+            }
+        }
+        return parts.joined(separator: " · ")
     }
 }

@@ -16,6 +16,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // 安全模式自检：把"已注册但未分级"的能力打到控制台，新增能力不再悄悄绕过策略
         SecurityPolicy.auditCoverage(against: CapabilityRegistry.shared.allCapabilities())
 
+        // 首次启动安装内置示例应用（计算器 / 待办 / 秒表 / 单位换算 / 能力导览）
+        DemoAppsCatalog.installIfNeeded()
+
         // 冷启动时如果是由 URL 唤起，处理它
         if let url = connectionOptions.urlContexts.first?.url {
             handleURL(url)

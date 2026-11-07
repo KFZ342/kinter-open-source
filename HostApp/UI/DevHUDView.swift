@@ -11,6 +11,10 @@ final class DevHUDView: UIView {
     private let jsLabel = UILabel()
     private let uptimeLabel = UILabel()
     private let sessionLabel = UILabel()
+    private let permButton = UIButton(type: .system)
+
+    /// 一键请求系统权限（Runner 注入实现）
+    var onRequestAllPermissions: (() -> Void)?
 
     private var displayLink: CADisplayLink?
     private var frameCount = 0
@@ -71,6 +75,13 @@ final class DevHUDView: UIView {
         stack.addArrangedSubview(sessionLabel)
         stack.addArrangedSubview(uptimeLabel)
 
+        permButton.setTitle("一键请求权限", for: .normal)
+        permButton.titleLabel?.font = .systemFont(ofSize: 11, weight: .semibold)
+        permButton.setTitleColor(.systemBlue, for: .normal)
+        permButton.contentHorizontalAlignment = .leading
+        permButton.addTarget(self, action: #selector(tapPermissions), for: .touchUpInside)
+        stack.addArrangedSubview(permButton)
+
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
@@ -84,6 +95,16 @@ final class DevHUDView: UIView {
         displayLink = link
         lastTickTime = link.timestamp
         refreshStats()
+    }
+
+    @objc private func tapPermissions() {
+        onRequestAllPermissions?()
+    }
+
+    /// 请求过程中的进度反馈
+    func showPermissionProgress(_ text: String) {
+        permButton.setTitle(text, for: .normal)
+        permButton.setTitleColor(.systemTeal, for: .normal)
     }
 
     @objc private func linkTick() {

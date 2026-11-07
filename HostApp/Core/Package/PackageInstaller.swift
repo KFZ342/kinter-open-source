@@ -133,7 +133,9 @@ final class PackageInstaller {
                                installedAt: Date(),
                                category: category,
                                disabledCapabilities: [],
-                               iconFileName: iconName)
+                               iconFileName: iconName,
+                               iconSymbol: manifest.iconSymbol,
+                               iconColor: manifest.iconColor)
         let dest = app.directory
 
         if FileManager.default.fileExists(atPath: dest.path) {

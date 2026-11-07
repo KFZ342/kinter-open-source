@@ -22,6 +22,10 @@ struct MiniAppManifest: Codable {
     var icon: String?
     /// 售价（元）。nil / 0 / 缺省 = 免费；>0 = 付费小程序
     var price: Double?
+    /// SF Symbol 图标名，如 "star.fill"。无需图标文件即可显示图标
+    var iconSymbol: String?
+    /// 图标底色，十六进制字符串，如 "#FF6B6B"
+    var iconColor: String?
 
     func declares(_ capability: String) -> Bool {
         guard let capabilities = capabilities else { return false }

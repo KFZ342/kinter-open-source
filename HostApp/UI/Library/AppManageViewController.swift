@@ -39,13 +39,15 @@ final class AppManageViewController: UIViewController {
 }
 
 extension AppManageViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int { 4 }
+    func numberOfSections(in tableView: UITableView) -> Int { 6 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 1                 // 分类
-        case 1: return 1                 // 桌面快捷方式
-        case 2: return max(permissionIDs.count, 1)
+        case 1: return 2                 // 收藏 + 评分
+        case 2: return 3                 // 使用统计
+        case 3: return 1                 // 桌面快捷方式
+        case 4: return max(permissionIDs.count, 1)
         default: return 1                // 卸载
         }
     }
@@ -53,15 +55,20 @@ extension AppManageViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0: return "分类"
-        case 1: return "桌面"
-        case 2: return "权限（\(permissionIDs.count) 项）"
+        case 1: return "收藏与评分"
+        case 2: return "使用统计"
+        case 3: return "桌面"
+        case 4: return "权限（\(permissionIDs.count) 项）"
         default: return nil
         }
     }
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        if section == 2 {
+        if section == 4 {
             return "关闭某项权限后，应用调用该能力会立即失败。模拟器不支持的能力仍会列出，真机上才生效。"
+        }
+        if section == 2 {
+            return "统计保存在 library.json 中，卸载应用时一并清除。"
         }
         return nil
     }
@@ -78,11 +85,58 @@ extension AppManageViewController: UITableViewDataSource, UITableViewDelegate {
             cell.accessoryType = .disclosureIndicator
 
         case 1:
+            if indexPath.row == 0 {
+                cell.textLabel?.text = "收藏"
+                let sw = UISwitch()
+                sw.isOn = app.isFavorite
+                sw.addTarget(self, action: #selector(toggleFavorite(_:)), for: .valueChanged)
+                cell.accessoryView = sw
+            } else {
+                cell.textLabel?.text = "评分"
+                cell.detailTextLabel?.text = nil
+                let stars = app.ratingStars ?? "未评分"
+                let label = UILabel()
+                label.text = stars
+                label.font = .systemFont(ofSize: 15)
+                label.textColor = app.rating > 0 ? .systemOrange : .secondaryLabel
+                label.sizeToFit()
+                cell.accessoryView = label
+                cell.accessoryType = .disclosureIndicator
+            }
+
+        case 2:
+            let stats: [String] = ["打开次数", "累计使用", "最近打开"]
+            cell.textLabel?.text = stats[indexPath.row]
+            cell.textLabel?.textColor = .label
+            let value = UILabel()
+            value.font = .systemFont(ofSize: 15)
+            value.textColor = .secondaryLabel
+            switch indexPath.row {
+            case 0:
+                value.text = "\(app.launchCount) 次"
+            case 1:
+                let minutes = Int(app.totalUsageSeconds) / 60
+                value.text = minutes >= 60
+                    ? "\(minutes / 60) 小时 \(minutes % 60) 分"
+                    : "\(minutes) 分"
+            default:
+                if let date = app.lastOpenedAt {
+                    let f = DateFormatter()
+                    f.dateFormat = "MM-dd HH:mm"
+                    value.text = f.string(from: date)
+                } else {
+                    value.text = "从未打开"
+                }
+            }
+            value.sizeToFit()
+            cell.accessoryView = value
+
+        case 3:
             cell.textLabel?.text = "添加到主屏幕"
             cell.textLabel?.textColor = .systemBlue
             cell.accessoryType = .disclosureIndicator
 
-        case 2:
+        case 4:
             guard !permissionIDs.isEmpty else {
                 cell.textLabel?.text = "未声明任何能力"
                 cell.textLabel?.textColor = .secondaryLabel
@@ -117,11 +171,39 @@ extension AppManageViewController: UITableViewDataSource, UITableViewDelegate {
         tableView.deselectRow(at: indexPath, animated: true)
         if indexPath.section == 0 {
             promptCategory()
-        } else if indexPath.section == 1 {
-            addToHomeScreen()
+        } else if indexPath.section == 1 && indexPath.row == 1 {
+            promptRating()
         } else if indexPath.section == 3 {
+            addToHomeScreen()
+        } else if indexPath.section == 5 {
             confirmUninstall()
         }
+    }
+
+    @objc private func toggleFavorite(_ sw: UISwitch) {
+        AppLibrary.shared.setFavorite(sw.isOn, for: app.appId)
+        app = AppLibrary.shared.app(id: app.appId) ?? app
+    }
+
+    /// 评分：0-5 星，选 0 即清除评分
+    private func promptRating() {
+        let sheet = UIAlertController(title: "给 \(app.name) 评分", message: nil, preferredStyle: .actionSheet)
+        for n in stride(from: 5, through: 0, by: -1) {
+            let title = n == 0 ? "清除评分" : String(repeating: "★", count: n) + String(repeating: "☆", count: 5 - n)
+            let action = UIAlertAction(title: title, style: n == 0 ? .destructive : .default) { _ in
+                AppLibrary.shared.setRating(n, for: self.app.appId)
+                self.app = AppLibrary.shared.app(id: self.app.appId) ?? self.app
+                self.table.reloadSections(IndexSet(integer: 1), with: .none)
+            }
+            sheet.addAction(action)
+        }
+        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+            pop.permittedArrowDirections = []
+        }
+        present(sheet, animated: true)
     }
 
     @objc private func toggle(_ sw: UISwitch) {
@@ -129,7 +211,7 @@ extension AppManageViewController: UITableViewDataSource, UITableViewDelegate {
         let cap = permissionIDs[sw.tag]
         AppLibrary.shared.setCapability(cap, enabled: sw.isOn, for: app.appId)
         app = AppLibrary.shared.app(id: app.appId) ?? app
-        table.reloadSections(IndexSet(integer: 1), with: .none)
+        table.reloadSections(IndexSet(integer: 4), with: .none)
     }
 
     private func promptCategory() {

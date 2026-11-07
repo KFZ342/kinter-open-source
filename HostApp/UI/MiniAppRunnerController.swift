@@ -18,9 +18,19 @@ final class MiniAppRunnerController: UIViewController {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// 本次会话开始时间（离开时结算使用时长）
+    private var sessionStartedAt: Date?
+
+    /// 一键请求全部系统权限（DevHUD 调试入口）
+    private let systemPermissionIDs = ["camera", "microphone", "location", "photo",
+                                       "savePhoto", "contacts", "calendar", "reminder",
+                                       "notification", "bluetooth", "speech", "biometric", "health"]
+    private var permissionCursor = 0
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        sessionStartedAt = Date()
 
         // 顶部自定义导航栏
         setupNavBar()
@@ -91,6 +101,40 @@ final class MiniAppRunnerController: UIViewController {
         UIView.animate(withDuration: duration) {
             self.web.webView.scrollView.contentInset.bottom = 0
             self.web.webView.scrollView.verticalScrollIndicatorInsets.bottom = 0
+        }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if let start = sessionStartedAt {
+            AppLibrary.shared.addUsage(appId: app.appId,
+                                       seconds: Date().timeIntervalSince(start))
+            sessionStartedAt = nil
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if sessionStartedAt == nil { sessionStartedAt = Date() }
+    }
+
+    private func requestAllSystemPermissions() {
+        permissionCursor = 0
+        requestNextSystemPermission()
+    }
+
+    private func requestNextSystemPermission() {
+        guard permissionCursor < systemPermissionIDs.count else {
+            devHUD?.showPermissionProgress("权限已全部请求")
+            return
+        }
+        let id = systemPermissionIDs[permissionCursor]
+        permissionCursor += 1
+        devHUD?.showPermissionProgress("请求中 \(permissionCursor)/\(systemPermissionIDs.count)")
+        PermissionManager.request(id) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.requestNextSystemPermission()
+            }
         }
     }
 
@@ -576,6 +620,7 @@ final class MiniAppRunnerController: UIViewController {
             return (bridge.callCount, bridge.errorCount)
         }
         hud.jsErrorCount = { [weak self] in self?.jsErrorCount ?? 0 }
+        hud.onRequestAllPermissions = { [weak self] in self?.requestAllSystemPermissions() }
         devHUD = hud
         hudButton.tintColor = .systemYellow
     }
