@@ -46,6 +46,10 @@
 |---|---|
 | <img src="docs/images/settings.jpg" width="430"> | <img src="docs/images/privacy.jpg" width="430"> |
 
+装之前它也先亮底牌——这个包要相机、要存相册，一项一项列在安装弹窗里，你点「安装」之前就看得到。不点，它连包都进不来：
+
+<img src="docs/images/install.jpg" width="680">
+
 ### 🎨 应用库
 - ✅ 分类分组，收藏区固定置顶
 - ✅ 星标收藏、0–5 星评分、打开次数与累计时长
