@@ -18,7 +18,20 @@ final class SecurityBanner {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             guard let window = Self.presentingWindow() else { return }
+            // 兜底：横幅只是提示，渲染失败也不该把宿主带走
+            let thrown = ObjCExceptionCatcher.catchException {
+                self.render(module: module, appName: appName,
+                            onAllowOnce: onAllowOnce, onTrust: onTrust, in: window)
+            }
+            if let t = thrown {
+                NSLog("[SecurityBanner] 横幅未能显示：%@", t)
+            }
+        }
+    }
 
+    private func render(module: String, appName: String?,
+                        onAllowOnce: (() -> Void)?, onTrust: (() -> Void)?,
+                        in window: UIWindow) {
             self.current?.removeFromSuperview()
 
             let name = SecurityMode.displayName(for: module)
@@ -120,10 +133,10 @@ final class SecurityBanner {
             let wide = card.widthAnchor.constraint(equalTo: window.widthAnchor, constant: -24)
             wide.priority = UILayoutPriority(750)
             constraints += [edge, edge2, wide]
-            NSLayoutConstraint.activate(constraints)
-
+            // 先入窗口再激活：card 与 window 没有共同祖先时激活跨视图约束会抛 NSException
             window.addSubview(card)
             self.current = card
+            NSLayoutConstraint.activate(constraints)
 
             card.alpha = 0
             card.transform = CGAffineTransform(translationX: 0, y: -24)
