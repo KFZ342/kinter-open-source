@@ -11,6 +11,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         win.rootViewController = RootTabController()
         win.makeKeyAndVisible()
         self.window = win
+        // Web 控制横幅：浏览器在操作这台设备时悬浮提示，并支持一键踢出
+        WebControlBanner.shared.install(in: win)
 
         CapabilityRegistry.shared.registerBuiltins()
         // 安全模式自检：把"已注册但未分级"的能力打到控制台，新增能力不再悄悄绕过策略
@@ -18,6 +20,17 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         // 首次启动安装内置示例应用（计算器 / 待办 / 秒表 / 单位换算 / 能力导览）
         DemoAppsCatalog.installIfNeeded()
+
+        // Web 访问：上次开着服务的话，冷启动时自动恢复监听（放到后台队列，避免拖慢启动）
+        if WebAccessSettings.shared.autoStart && !WebAccessService.shared.isRunning {
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    try WebAccessService.shared.start()
+                } catch {
+                    NSLog("[WebAccess] 自动启动失败：%@", error.localizedDescription)
+                }
+            }
+        }
 
         // 冷启动时如果是由 URL 唤起，处理它
         if let url = connectionOptions.urlContexts.first?.url {

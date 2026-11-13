@@ -478,7 +478,7 @@ final class AgentRuntime {
         let files: [String: String]
         let originalPrompt: String
 
-        if let gen = generated, let dir = generatedDir {
+        if generated != nil, let dir = generatedDir {
             files = loadTextFiles(from: dir)
             targetApp = nil
             originalPrompt = lastPrompt

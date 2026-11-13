@@ -1,0 +1,389 @@
+/*
+ * Kinter 小程序 SDK
+ * 所有 API 返回 Promise
+ * 所有调用走 webkit.messageHandlers.bridge
+ */
+(function (root) {
+  'use strict';
+
+  var seq = 0;
+  var pending = {};
+
+  function bridge() {
+    var w = root.webkit;
+    return (w && w.messageHandlers && w.messageHandlers.bridge) ? w.messageHandlers.bridge : null;
+  }
+
+  var BRIDGE_TIMEOUT_MS = 30000;
+
+  function invoke(module, method, params, noTimeout) {
+    return new Promise(function (resolve, reject) {
+      var h = bridge();
+      if (!h) { reject({ code: 'bridge_unavailable', message: 'Native bridge not found' }); return; }
+      seq += 1;
+      var id = 'cb_' + seq;
+      var timer = null;
+      // 等待用户操作的模态类调用不设超时（showModal / showActionSheet 用户不点击就永远等待）
+      if (!noTimeout) {
+        timer = setTimeout(function () {
+          if (pending[id]) {
+            delete pending[id];
+            reject({ code: 'timeout', message: '原生调用超时: ' + module + '.' + method });
+          }
+        }, BRIDGE_TIMEOUT_MS);
+      }
+      pending[id] = { resolve: resolve, reject: reject, timer: timer };
+      try {
+        h.postMessage({ module: module, method: method, params: params || {}, callbackId: id, noTimeout: !!noTimeout });
+      } catch (e) {
+        if (timer) clearTimeout(timer);
+        delete pending[id];
+        reject({ code: 'post_message_failed', message: String(e) });
+      }
+    });
+  }
+
+  root.__wxBridgeCallback = function (p) {
+    if (!p || !p.callbackId) return;
+    var e = pending[p.callbackId];
+    if (!e) return;
+    if (e.timer) clearTimeout(e.timer);
+    delete pending[p.callbackId];
+    if (p.ok) {
+      e.resolve(p.data);
+    } else {
+      e.reject(p.error || { code: 'unknown' });
+    }
+  };
+
+  // ---- 事件系统 ----
+  var listeners = {};
+
+  root.__wxEmit = function (p) {
+    if (!p || !p.event) return;
+    var handlers = listeners[p.event] || [];
+    for (var i = 0; i < handlers.length; i++) {
+      try { handlers[i](p.data); } catch (err) { console.error('[wx] handler error:', err); }
+    }
+  };
+
+  // 原生批量推送入口（同一 RunLoop 内的多条事件合并注入）
+  root.__wxEmitBatch = function (arr) {
+    if (!arr || !arr.length) return;
+    for (var i = 0; i < arr.length; i++) root.__wxEmit(arr[i]);
+  };
+
+  // 父页下行事件通道（postMessage RPC）；严格绑定父窗口，非父窗口消息丢弃。
+  // 父页向本子帧发消息时因沙箱不透明源使用 targetOrigin '*'，来源以此处 event.source 校验为准。
+  root.addEventListener('message', function (e) {
+    if (e.source !== root.parent) return;
+    var p = e.data;
+    if (p && p.type === 'kfw-event') root.__wxEmit({ event: p.event, data: p.data });
+  });
+
+  function on(event, handler) {
+    if (typeof handler !== 'function') return;
+    if (!listeners[event]) listeners[event] = [];
+    listeners[event].push(handler);
+  }
+
+  function off(event, handler) {
+    if (!listeners[event]) return;
+    if (!handler) { delete listeners[event]; return; }
+    listeners[event] = listeners[event].filter(function (fn) { return fn !== handler; });
+  }
+
+  // ---- wx 对象 ----
+  root.wx = {
+
+    // ===== 事件 =====
+    on: on,
+    off: off,
+
+    // ===== 弹窗 =====
+    // showModal / showActionSheet 等待用户点击，不设超时
+    toast: function (o) { return invoke('popup', 'toast', o); },
+    showModal: function (o) { return invoke('popup', 'modal', o, true); },
+    showActionSheet: function (o) { return invoke('popup', 'actionSheet', o, true); },
+    dismissAllPopups: function (o) { return invoke('popup', 'dismissAll', o); },
+
+    // ===== 存储 =====
+    setStorage: function (o) { return invoke('storage', 'set', o); },
+    getStorage: function (o) { return invoke('storage', 'get', o); },
+    removeStorage: function (o) { return invoke('storage', 'remove', o); },
+
+    // ===== 全局数据（运行时，关闭即清空）=====
+    globalData: {
+      set: function (o) { return invoke('store', 'set', o); },
+      get: function (o) { return invoke('store', 'get', o); },
+      remove: function (o) { return invoke('store', 'remove', o); },
+      clear: function (o) { return invoke('store', 'clear', o); },
+      all: function (o) { return invoke('store', 'all', o); }
+    },
+
+    // ===== iOS 原生权限深度集成 =====
+    // scope.* 微信风格名 → 内部权限 ID
+    _permScopeMap: {
+      'scope.camera': 'camera',
+      'scope.record': 'microphone',
+      'scope.userLocation': 'location',
+      'scope.writePhotosAlbum': 'savePhoto',
+      'scope.album': 'photo',
+      'scope.addressBook': 'contacts',
+      'scope.calendar': 'calendar',
+      'scope.reminders': 'reminder',
+      'scope.notification': 'notification',
+      'scope.bluetooth': 'bluetooth',
+      'scope.werun': 'motion',
+      'scope.speech': 'speech',
+      'scope.faceId': 'biometric',
+      'scope.health': 'health',
+      'scope.tracking': 'att',
+      'scope.localNetwork': 'localNetwork',
+      'scope.nfc': 'nfc',
+      'scope.mediaLibrary': 'mediaLibrary',
+      'scope.homeKit': 'homeKit',
+      'scope.nearby': 'nearby'
+    },
+    // 内部权限 ID → scope.* 名
+    _scopeReverseMap: {
+      'camera': 'scope.camera',
+      'microphone': 'scope.record',
+      'location': 'scope.userLocation',
+      'savePhoto': 'scope.writePhotosAlbum',
+      'photo': 'scope.album',
+      'contacts': 'scope.addressBook',
+      'calendar': 'scope.calendar',
+      'reminder': 'scope.reminders',
+      'notification': 'scope.notification',
+      'bluetooth': 'scope.bluetooth',
+      'motion': 'scope.werun',
+      'speech': 'scope.speech',
+      'biometric': 'scope.faceId',
+      'health': 'scope.health',
+      'att': 'scope.tracking',
+      'localNetwork': 'scope.localNetwork',
+      'nfc': 'scope.nfc',
+      'mediaLibrary': 'scope.mediaLibrary',
+      'homeKit': 'scope.homeKit',
+      'nearby': 'scope.nearby'
+    },
+    _normPerm: function (p) {
+      if (!p) return '';
+      if (typeof p !== 'string') return '';
+      return wx._permScopeMap[p] || p;
+    },
+    /** 查询单个权限的细分状态（authorized/denied/notDetermined/restricted/limited/unsupported） */
+    getPermissionStatus: function (o) {
+      var p = wx._normPerm(o && o.permission);
+      return invoke('permission', 'getStatus', { permission: p }).then(function (res) {
+        return {
+          permission: wx._scopeReverseMap[res.permission] || res.permission,
+          status: res.status
+        };
+      });
+    },
+    /** 查询所有权限，返回微信风格 { authSetting: { 'scope.camera': true } } */
+    getSetting: function (o) {
+      return invoke('permission', 'getSetting', o || {}).then(function (res) {
+        var auth = {};
+        for (var id in res) {
+          var scope = wx._scopeReverseMap[id] || id;
+          auth[scope] = (res[id] === 'authorized' || res[id] === 'limited');
+        }
+        return { authSetting: auth };
+      });
+    },
+    /** 申请授权（denied 后再次调用会直接进系统设置引导） */
+    authorize: function (o) {
+      var p = wx._normPerm(o && o.permission);
+      return invoke('permission', 'request', { permission: p }).then(function (res) {
+        return {
+          permission: wx._scopeReverseMap[res.permission] || res.permission,
+          status: res.status
+        };
+      });
+    },
+    /** 打开本 App 的系统设置页 */
+    openSetting: function (o) {
+      return invoke('permission', 'openSettings', o || {});
+    },
+
+    // ===== 页面路由 =====
+    navigateTo: function (o) { return invoke('router', 'navigateTo', o); },
+    redirectTo: function (o) { return invoke('router', 'redirectTo', o); },
+    reLaunch: function (o) { return invoke('router', 'reLaunch', o); },
+    navigateBack: function (o) { return invoke('router', 'navigateBack', o); },
+    getPageStack: function (o) { return invoke('router', 'getStack', o); },
+
+    // ===== 文件 =====
+    getDataPath: function (o) { return invoke('files', 'info', o); },
+    makeDirectory: function (o) { return invoke('files', 'mkdir', o); },
+    listDirectory: function (o) { return invoke('files', 'listDir', o); },
+    writeFile: function (o) { return invoke('files', 'write', o); },
+    readFile: function (o) { return invoke('files', 'read', o); },
+    removeFile: function (o) { return invoke('files', 'remove', o); },
+    listFiles: function (o) { return invoke('files', 'list', o); },
+
+    // ===== 网络 =====
+    request: function (o) { return invoke('http', 'request', o); },
+    upload: function (o) { return invoke('upload', 'upload', o); },
+
+    // ===== WebSocket =====
+    wsConnect: function (o) { return invoke('websocket', 'connect', o); },
+    wsSend: function (o) { return invoke('websocket', 'send', o); },
+    wsClose: function (o) { return invoke('websocket', 'close', o); },
+    wsIsOpen: function (o) { return invoke('websocket', 'isOpen', o); },
+
+    // ===== 网络监听 =====
+    startNetworkWatch: function (o) { return invoke('networkWatch', 'start', o); },
+    stopNetworkWatch: function (o) { return invoke('networkWatch', 'stop', o); },
+
+    // ===== 相机 / 相册 / 麦克风 =====
+    chooseImage: function (o) { return invoke('camera', 'chooseImage', o); },
+    chooseMedia: function (o) { return invoke('photo', 'chooseMedia', o); },
+    startRecord: function (o) { return invoke('microphone', 'start', o); },
+    stopRecord: function (o) { return invoke('microphone', 'stop', o); },
+    recordVideo: function (o) { return invoke('videoRecord', 'record', o); },
+    compressImage: function (o) { return invoke('image', 'compress', o); },
+    savePhotoToAlbum: function (o) { return invoke('savePhoto', 'save', o); },
+
+    // ===== 音频 =====
+    playAudio: function (o) { return invoke('audio', 'play', o); },
+    pauseAudio: function (o) { return invoke('audio', 'pause', o); },
+    stopAudio: function (o) { return invoke('audio', 'stop', o); },
+    seekAudio: function (o) { return invoke('audio', 'seek', o); },
+
+    // ===== 音乐（AVPlayer，支持本地/远程 URL、循环、音量、后台播放）=====
+    playMusic: function (o) { return invoke('music', 'play', o); },
+    pauseMusic: function (o) { return invoke('music', 'pause', o); },
+    resumeMusic: function (o) { return invoke('music', 'resume', o); },
+    stopMusic: function (o) { return invoke('music', 'stop', o); },
+    seekMusic: function (o) { return invoke('music', 'seek', o); },
+    getMusicState: function (o) { return invoke('music', 'getState', o); },
+    setMusicVolume: function (o) { return invoke('music', 'setVolume', o); },
+    playTestMusic: function (o) { return invoke('music', 'playTest', o); }, // 播放宿主内置测试音频（开发调试）
+
+    // ===== TTS =====
+    speak: function (o) { return invoke('tts', 'speak', o); },
+    stopSpeaking: function (o) { return invoke('tts', 'stop', o); },
+
+    // ===== 二维码 =====
+    scanQR: function (o) { return invoke('qrScan', 'scan', o); },
+    generateQR: function (o) { return invoke('qrGenerate', 'generate', o); },
+
+    // ===== OCR =====
+    ocr: function (o) { return invoke('ocr', 'recognize', o); },
+
+    // ===== 定位 =====
+    getLocation: function (o) { return invoke('location', 'getCurrent', o); },
+    startLocationUpdate: function (o) { return invoke('locationWatch', 'start', o); },
+    stopLocationUpdate: function (o) { return invoke('locationWatch', 'stop', o); },
+
+    // ===== 设备 =====
+    getSystemInfo: function (o) { return invoke('deviceInfo', 'get', o); },
+    getBattery: function (o) { return invoke('battery', 'get', o); },
+    getNetwork: function (o) { return invoke('network', 'get', o); },
+    getMotion: function (o) { return invoke('motion', 'deviceMotion', o); },
+
+    // ===== 剪贴板 =====
+    setClipboard: function (o) { return invoke('clipboard', 'set', o); },
+    getClipboard: function (o) { return invoke('clipboard', 'get', o); },
+    getClipboardImage: function (o) { return invoke('clipboardImage', 'get', o); },
+    setClipboardImage: function (o) { return invoke('clipboardImage', 'set', o); },
+
+    // ===== 震动 =====
+    vibrateShort: function (o) { return invoke('vibrate', 'short', o); },
+    vibrateLong: function (o) { return invoke('vibrate', 'long', o); },
+
+    // ===== 屏幕 =====
+    getBrightness: function (o) { return invoke('brightness', 'get', o); },
+    setBrightness: function (o) { return invoke('brightness', 'set', o); },
+    keepScreenOn: function (o) { return invoke('screenAwake', 'enable', o); },
+    keepScreenOff: function (o) { return invoke('screenAwake', 'disable', o); },
+
+    // ===== 通知 =====
+    requestNotification: function (o) { return invoke('notification', 'requestPermission', o); },
+    scheduleNotification: function (o) { return invoke('notification', 'schedule', o); },
+
+    // ===== 通讯录 / 日历 / 提醒 =====
+    getContacts: function (o) { return invoke('contacts', 'getAll', o); },
+    addCalendarEvent: function (o) { return invoke('calendar', 'add', o); },
+    listCalendarEvents: function (o) { return invoke('calendar', 'list', o); },
+    addReminder: function (o) { return invoke('reminder', 'add', o); },
+
+    // ===== 语音识别 =====
+    recognizeSpeech: function (o) { return invoke('speech', 'recognizeOnce', o); },
+
+    // ===== 健康 =====
+    getStepCount: function (o) { return invoke('health', 'stepCount', o); },
+
+    // ===== 蓝牙 =====
+    scanBluetooth: function (o) { return invoke('bluetooth', 'scan', o); },
+    scanBluetoothDevices: function (o) { return invoke('bluetoothScan', 'scan', o); },
+
+    // ===== 生物识别 =====
+    authenticate: function (o) { return invoke('biometric', 'authenticate', o); },
+
+    // ===== 通信 =====
+    makePhoneCall: function (o) { return invoke('communication', 'call', o); },
+    sendSMS: function (o) { return invoke('communication', 'sms', o); },
+    sendEmail: function (o) { return invoke('communication', 'mail', o); },
+
+    // ===== 分享 / URL =====
+    share: function (o) { return invoke('share', 'text', o); },
+    /** 打开链接或 URL Scheme 唤起原生 App（如 weixin://、kinter://；file:// 等危险 scheme 被禁止） */
+    openURL: function (o) { return invoke('openURL', 'open', o); },
+    /** 查询 scheme 能否被系统打开（App 是否已安装） */
+    canOpenURL: function (o) { return invoke('openURL', 'canOpen', o); },
+
+    // ===== PDF / 打印 =====
+    generatePDF: function (o) { return invoke('pdf', 'generate', o); },
+    printFile: function (o) { return invoke('print', 'print', o); },
+
+    // ===== 系统搜索（Spotlight）=====
+    indexSearchableItem: function (o) { return invoke('spotlight', 'index', o); },
+    removeSearchableItem: function (o) { return invoke('spotlight', 'remove', o); },
+    removeAllSearchableItems: function (o) { return invoke('spotlight', 'removeAll', o); },
+
+    // ===== 实时活动（Live Activity）=====
+    startLiveActivity: function (o) { return invoke('liveActivity', 'start', o); },
+    updateLiveActivity: function (o) { return invoke('liveActivity', 'update', o); },
+    endLiveActivity: function (o) { return invoke('liveActivity', 'end', o); },
+    isLiveActivitySupported: function (o) { return invoke('liveActivity', 'isSupported', o); },
+    listLiveActivities: function (o) { return invoke('liveActivity', 'list', o); },
+    getLiveActivityState: function (o) { return invoke('liveActivity', 'getState', o); },
+
+    // ===== 账号 =====
+    getAccount: function (o) { return invoke('account', 'get', o); },
+    isLoggedIn: function (o) { return invoke('account', 'isLoggedIn', o); },
+
+    // ===== 应用间调用 =====
+    openApp: function (o) { return invoke('app', 'open', o); },
+    canOpenApp: function (o) { return invoke('app', 'canOpen', o); },
+    // ===== Metal GPU 多核并行算力 =====
+    applyMetalFilter: function (o) { return invoke('metal', 'applyFilter', o); },
+    convolveMetalImage: function (o) { return invoke('metal', 'convolve', o); },
+    batchResizeMetalImages: function (o) { return invoke('metal', 'batchResize', o); },
+    gpuReduce: function (o) { return invoke('metal', 'reduce', o); },
+    gpuMatMul: function (o) { return invoke('metal', 'matMul', o); },
+    renderMetalFractal: function (o) { return invoke('metal', 'renderFractal', o); },
+    getLaunchParams: function (o) { return invoke('app', 'getLaunchParams', o); },
+
+    // ===== 独家：跨窗口实时联动（LiveSync，多开实例互通） =====
+    broadcast: function (o) { return invoke('sharedbus', 'broadcast', o); },
+    setSharedValue: function (o) { return invoke('sharedbus', 'setSharedValue', o); },
+    getSharedValue: function (o) { return invoke('sharedbus', 'getSharedValue', o); },
+    listSharedValues: function (o) { return invoke('sharedbus', 'listSharedValues', o); },
+    removeSharedValue: function (o) { return invoke('sharedbus', 'removeSharedValue', o); },
+    // 订阅其它窗口的广播 / 共享值变更（宿主事件通道，与 wx.on 同机制）
+    onBroadcast: function (topic, handler) { return on('livesync.broadcast.' + topic, handler); },
+    onSharedValueChange: function (key, handler) { return on('livesync.value.' + key, handler); },
+
+    // ===== 独家：小程序内 AI 助手 =====
+    // wx.askAI({ question, context? }) -> { answer, code? }
+    askAI: function (o) { return invoke('ai', 'ask', o); },
+
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);

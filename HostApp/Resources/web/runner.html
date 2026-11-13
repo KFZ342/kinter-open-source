@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7">
+<title>运行中 · Kinter</title>
+<style>
+  :root { --nav-blur: rgba(249,249,249,.84); --sep: rgba(60,60,67,.16); --blue: #007aff; --label: #1c1c1e; --bg: #f2f2f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --nav-blur: rgba(28,28,30,.84); --sep: rgba(84,84,88,.5); --blue: #0a84ff; --label: #f2f2f7; --bg: #000; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); }
+  body { font: 15px/1.4 -apple-system, "PingFang SC", sans-serif; color: var(--label); overflow: hidden; }
+  .wrap { height: 100%; display: flex; flex-direction: column; }
+  .rnav {
+    flex: 0 0 auto; display: grid; grid-template-columns: 86px 1fr 56px; align-items: center;
+    padding: 8px 6px; padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    background: var(--nav-blur);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: .5px solid var(--sep); position: relative; z-index: 2;
+  }
+  .rnav button { border: 0; background: transparent; color: var(--blue); font-size: 15px; padding: 8px 4px; cursor: pointer; white-space: nowrap; }
+  .rnav .title { text-align: center; font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rnav .right { text-align: right; }
+  iframe { flex: 1 1 auto; width: 100%; border: 0; background: transparent; }
+  .hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); font-size: 12px; color: var(--label);
+    background: var(--nav-blur); border: .5px solid var(--sep); padding: 6px 12px; border-radius: 10px;
+    opacity: .9; pointer-events: none; transition: opacity .3s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="rnav">
+    <div><button id="back">‹ 返回</button></div>
+    <div class="title" id="title">运行中</div>
+    <div class="right"><button id="reload">↻</button></div>
+  </div>
+  <iframe id="frame" allow="camera; microphone; geolocation; clipboard-write"></iframe>
+</div>
+<div class="hint" id="hint">小程序运行在 Web 端，能力调用回到设备上的 Kinter</div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var appId = params.get('appId');
+  var name = params.get('name') || appId;
+  var startPage = params.get('page') || 'index';
+
+  if (!appId) {
+    document.getElementById('title').textContent = '缺少 appId';
+    document.getElementById('frame').src = 'about:blank';
+    return;
+  }
+
+  document.getElementById('title').textContent = name;
+  document.title = name + ' · Kinter';
+
+  var frame = document.getElementById('frame');
+  // 页面栈只放在父窗口：iframe 每次导航都会换文档，栈放里面会丢
+  var stack = [startPage];
+
+  function pageURL(path) {
+    if (/^(http|https|about|data):/.test(path)) return path;
+    var p = path.replace(/^\/+/, '');
+    return '/apps/' + encodeURIComponent(appId) + '/' + p;
+  }
+
+  function load(path) {
+    frame.src = pageURL(path);
+  }
+
+  window.KinterRunner = {
+    getStack: function () { return stack.slice(); },
+    navigate: function (mode, path) {
+      if (!path) return;
+      if (mode === 'replace') {
+        stack[stack.length - 1] = path;
+      } else if (mode === 'relaunch') {
+        stack = [path];
+      } else {
+        stack.push(path);
+      }
+      load(path);
+    },
+    back: function (delta) {
+      delta = Math.max(1, delta || 1);
+      if (stack.length <= 1) {
+        location.href = '/';
+        return;
+      }
+      stack.splice(Math.max(1, stack.length - delta), delta);
+      load(stack[stack.length - 1] || startPage);
+    },
+    openApp: function (targetId, targetName) {
+      location.href = '/run?appId=' + encodeURIComponent(targetId) +
+                      '&name=' + encodeURIComponent(targetName || targetId) +
+                      '&page=index';
+    }
+  };
+
+  document.getElementById('back').addEventListener('click', function () {
+    if (stack.length > 1) window.KinterRunner.back(1);
+    else location.href = '/';
+  });
+
+  document.getElementById('reload').addEventListener('click', function () {
+    frame.src = frame.src;
+  });
+
+  frame.addEventListener('load', function () {
+    var hint = document.getElementById('hint');
+    hint.style.opacity = '1';
+    setTimeout(function () { hint.style.opacity = '0'; }, 3500);
+  });
+
+  load(startPage);
+
+  // 页面里的 bridge 用 postMessage 兜底（同源直调失败时）
+  window.addEventListener('message', function (e) {
+    var data = e.data;
+    if (!data || data.kinter !== true) return;
+    if (data.action === 'navigate') window.KinterRunner.navigate(data.mode, data.url);
+    if (data.action === 'back') window.KinterRunner.back(data.delta);
+    if (data.action === 'openApp') window.KinterRunner.openApp(data.appId, data.name);
+    if (data.action === 'title' && data.title) {
+      document.getElementById('title').textContent = data.title;
+      document.title = data.title + ' · Kinter';
+    }
+  });
+})();
+</script>
+</body>
+</html>

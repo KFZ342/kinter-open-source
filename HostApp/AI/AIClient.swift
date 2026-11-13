@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.kinter.host", category: "ai-client")
 
 /// 与 OpenAI 兼容接口通信。支持流式与非流式。
 /// 流式通过 SSE 解析，逐块回调增量文本。
@@ -149,7 +152,7 @@ final class AIClient: NSObject {
             guard let self = self, self.session != nil else { return }
             let idle = Date().timeIntervalSince1970 - self.lastDataTime
             if idle > self.idleTimeout {
-                print("[AIClient] idle timeout (\(Int(idle))s no data), force interrupt")
+                logger.notice("idle timeout (\(Int(idle))s no data), force interrupt")
                 self.timeoutForced = true
                 self.task?.cancel()
             }
@@ -218,7 +221,7 @@ extension AIClient: URLSessionDataDelegate {
             httpStatusCode = http.statusCode
             let ct = (http.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
             isSSE = ct.contains("event-stream")
-            print("[AIClient] response status=\(http.statusCode) content-type=\(ct) isSSE=\(isSSE)")
+            logger.debug("response status=\(http.statusCode) content-type=\(ct) isSSE=\(self.isSSE)")
         }
         completionHandler(.allow)
     }

@@ -1,7 +1,7 @@
 # Kinter · TestFlight 分发完整流程
 
 > 依据 Apple 官方文档整理（App Store Connect Help / Xcode 帮助 / Apple Developer Forums）
-> 适用版本：Kinter 1.2.0 (3)，Bundle ID `com.kinter.host`
+> 适用版本：Kinter 1.6.0 (4)，Bundle ID `com.kinter.host`
 
 ## 阶段 0：一次性前置准备（约 30 分钟）
 
@@ -16,8 +16,8 @@
 ## 阶段 1：构建并上传（每次发版重复）
 
 ```
-1. 构建前版本号确认：HostApp/App/Info.plist 里 CFBundleShortVersionString（如 1.2.0）与
-   CFBundleVersion（构建号，每次上传必须递增，如 3→4）
+1. 构建前版本号确认：HostApp/App/Info.plist 里 CFBundleShortVersionString（如 1.6.0）与
+   CFBundleVersion（构建号，每次上传必须递增，如 4→5）
 
 2. 命令行一键构建（脚本已就绪）：
    ./Tools/build_testflight.sh
@@ -35,7 +35,7 @@
 
 ## 阶段 2：App Store Connect 配置（首次必做）
 
-1. **新建 App**（App Store Connect → My Apps → +）：选平台 iOS，填名称、主要语言、Bundle ID、版本 1.2.0
+1. **新建 App**（App Store Connect → My Apps → +）：选平台 iOS，填名称、主要语言、Bundle ID、版本 1.6.0
 2. **App 信息**：填 1024×1024 图标（无 alpha 通道）、副标题、关键词、隐私政策 URL（可先用占位）
 3. **加密合规**：TestFlight 页/构建详情里选"否/豁免"（App 仅用标准 HTTPS 传输即可豁免）
 4. **等待构建处理**：上传后状态 "Processing" 通常 **5-30 分钟**；就绪会收到邮件。

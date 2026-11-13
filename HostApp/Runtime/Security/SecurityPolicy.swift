@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.kinter.host", category: "security")
 
 /// 敏感能力的三档策略。
 /// 防误判的核心：不是所有敏感能力都该被无差别拒绝。
@@ -140,7 +143,7 @@ enum SecurityPolicy {
             .filter { tiers[$0] == nil && !hardDenied.contains($0) }
             .sorted()
         if !missing.isEmpty {
-            NSLog("[SecurityPolicy] ⚠️ 未分级能力 %d 个：%@", missing.count, missing.joined(separator: ", "))
+            logger.error("未分级能力 \(missing.count) 个：\(missing.joined(separator: ", "))")
         }
         return missing
     }

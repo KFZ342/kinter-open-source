@@ -15,6 +15,15 @@ final class CameraProvider: NSObject, CapabilityProvider, UIImagePickerControlle
             completion(.failure(.methodNotFound(module: Self.capability, method: method)))
             return
         }
+        // 上一次拍照流程尚未结束：拒绝并发调用，避免新回调覆盖旧回调、picker 重复弹出。
+        guard self.completion == nil else {
+            completion(.failure(.providerError("camera busy")))
+            return
+        }
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            completion(.failure(.unsupported("camera")))
+            return
+        }
         guard AVCaptureDevice.authorizationStatus(for: .video) != .denied else {
             completion(.failure(.permissionDenied("camera")))
             return
@@ -34,6 +43,7 @@ final class CameraProvider: NSObject, CapabilityProvider, UIImagePickerControlle
         guard let top = UIApplication.shared.connectedScenes
             .compactMap({ ($0 as? UIWindowScene)?.keyWindow?.rootViewController })
             .first else {
+            self.completion = nil
             completion(.failure(.providerError("no presenter")))
             return
         }
@@ -57,7 +67,16 @@ final class CameraProvider: NSObject, CapabilityProvider, UIImagePickerControlle
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("cam_\(UUID().uuidString).jpg")
         do {
             try data.write(to: url)
-            completion?(.success(["tempFilePaths": [url.path]]))
+            // 额外给一份压缩后的 data URL：小程序页面可直接 <img> 预览，Web 端也能显示
+            let preview = image.preparingThumbnail(of: CGSize(width: 1280, height: 1280)) ?? image
+            var payload: [String: Any] = ["tempFilePaths": [url.path],
+                                          "size": data.count,
+                                          "width": Int(image.size.width),
+                                          "height": Int(image.size.height)]
+            if let thumb = preview.jpegData(compressionQuality: 0.7) {
+                payload["base64"] = "data:image/jpeg;base64," + thumb.base64EncodedString()
+            }
+            completion?(.success(payload))
         } catch {
             completion?(.failure(.providerError("save failed: \(error)")))
         }

@@ -23,13 +23,30 @@ final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
     /// 最近一次网关调用的往返耗时（秒）
     private(set) var lastCallDuration: TimeInterval = 0
 
+    /// 单条桥接消息体上限（JSON 字节）：防止页面塞进超大 params 撑爆桥接解析。
+    private static let maxBodyBytes = 256 * 1024
+
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        guard message.name == Self.handlerName,
-              let body = message.body as? [String: Any],
+        guard message.name == Self.handlerName else { return }
+        // 只接受主框架消息：内嵌子框架即便拿到 messageHandler 引用，也不能调用 bridge。
+        if !message.frameInfo.isMainFrame {
+            NSLog("[Bridge] blocked message from non-main frame")
+            return
+        }
+        guard let body = message.body as? [String: Any],
               let module = body["module"] as? String,
               let method = body["method"] as? String,
               let callbackId = body["callbackId"] as? String else {
+            return
+        }
+        // 消息体大小上限
+        if let data = try? JSONSerialization.data(withJSONObject: body, options: []),
+           data.count > Self.maxBodyBytes {
+            NSLog("[Bridge] dropped oversized message: %@.%@ (%d bytes)", module, method, data.count)
+            sendRouterResult(callbackId: callbackId, ok: false,
+                             error: ["code": "payload_too_large",
+                                     "message": "桥接消息体超过 \(Self.maxBodyBytes) 字节上限"])
             return
         }
         let params = body["params"] as? [String: Any] ?? [:]

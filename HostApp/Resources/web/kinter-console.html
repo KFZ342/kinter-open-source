@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7">
+<title>Kinter</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/pwa-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kinter">
+<meta name="application-name" content="Kinter">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/console.css?v=4">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- 顶部导航 -->
+  <header class="navbar" id="navbar">
+    <div class="nav-left">
+      <button class="nav-back" id="navBack" hidden aria-label="返回">‹</button>
+    </div>
+    <div class="nav-title" id="navTitle">导入应用</div>
+    <div class="nav-right">
+      <button class="nav-icon" id="navInfo" aria-label="信息">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.2"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.9" r=".9" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="content" id="content">
+
+    <!-- ============ 导入 ============ -->
+    <section class="screen" data-screen="import">
+      <div class="large-title">导入应用</div>
+      <div class="hero">
+        <div class="hero-icon">▣</div>
+        <h1>安装小程序</h1>
+        <p class="hero-sub">选择一个 .zip 安装包，系统会检查完整性后导入应用库。</p>
+        <button class="btn primary big" id="pickZip">选择 ZIP 安装包</button>
+        <input type="file" id="zipInput" accept=".zip" hidden>
+        <div class="hero-actions">
+          <button class="btn ghost" id="dropHintBtn">也可以把安装包拖到这里</button>
+        </div>
+      </div>
+
+      <div class="card status-card" id="importStatus" hidden>
+        <div class="status-head">
+          <span class="status-title" id="importStatusTitle">准备中…</span>
+          <span class="spinner" id="importSpinner"></span>
+        </div>
+        <div class="status-body" id="importStatusBody"></div>
+        <div class="status-actions" id="importStatusActions"></div>
+      </div>
+
+      <div class="card" id="previewCard" hidden>
+        <div class="row-app">
+          <div class="app-icon" id="previewIcon">A</div>
+          <div class="row-main">
+            <div class="row-title" id="previewName">—</div>
+            <div class="row-meta" id="previewMeta">—</div>
+          </div>
+        </div>
+        <div id="previewCaps" class="cap-list"></div>
+        <div class="field">
+          <label for="previewCategory">分类</label>
+          <input id="previewCategory" value="未分类" autocomplete="off">
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" id="confirmInstall">安装到应用库</button>
+          <button class="btn ghost" id="cancelInstall">取消</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 应用库 ============ -->
+    <section class="screen" data-screen="library" hidden>
+      <div class="large-title">应用库</div>
+      <div class="search-wrap search-row">
+        <input id="search" class="search" placeholder="搜索应用" autocomplete="off">
+        <button class="btn small" id="refreshApps">刷新</button>
+      </div>
+      <div id="libraryList"></div>
+      <div class="empty" id="libraryEmpty" hidden>
+        <div class="empty-icon">▦</div>
+        <div class="empty-title">还没有安装任何应用</div>
+        <div class="empty-sub">去「导入」页添加 ZIP 安装包</div>
+      </div>
+    </section>
+
+    <!-- ============ 商店 ============ -->
+    <section class="screen" data-screen="store" hidden>
+      <div class="large-title">商店</div>
+      <div class="card">
+        <div class="card-head">
+          <span>应用源</span>
+          <button class="btn small" id="refreshStore">刷新</button>
+        </div>
+        <div id="storeSources" class="source-list"></div>
+        <div class="field inline">
+          <input id="newSource" placeholder="index.json 地址，如 https://example.com/store/index.json" autocomplete="off">
+          <button class="btn small primary" id="addSource">添加</button>
+        </div>
+      </div>
+      <div id="storeList"></div>
+      <div class="empty" id="storeEmpty" hidden>
+        <div class="empty-icon">▤</div>
+        <div class="empty-title">商店还是空的</div>
+        <div class="empty-sub">添加一个 index.json 源，就能浏览并安装应用</div>
+      </div>
+    </section>
+
+    <!-- ============ 设置 ============ -->
+    <section class="screen" data-screen="settings" hidden>
+      <div class="large-title">设置</div>
+
+      <div class="card">
+        <div class="card-head"><span>Kinter 信息</span></div>
+        <div class="info-grid" id="infoGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>账号</span></div>
+        <div class="row-line" id="accountRow">未登录</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>安全模式</span></div>
+        <div class="row-line">
+          <span>开启安全模式</span>
+          <label class="switch"><input type="checkbox" id="securityMode"><i></i></label>
+        </div>
+        <div class="row-line sub">敏感能力默认拒绝，所有调用记录到隐私记录。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>Web 访问</span></div>
+        <div class="row-line"><span>服务地址</span><b class="mono" id="webUrl">—</b></div>
+        <div class="row-line">
+          <span>监听端口</span>
+          <input class="inline-input" id="webPort" type="number" min="1024" max="65535">
+        </div>
+        <div class="row-line"><span>当前令牌</span><b class="mono" id="webToken">••••••</b></div>
+        <div class="row-line">
+          <span>重新生成令牌</span>
+          <button class="btn small danger" id="rotateToken">重新生成</button>
+        </div>
+        <div class="field">
+          <label for="tokenInput">访问令牌</label>
+          <div style="display:flex;gap:8px">
+            <input id="tokenInput" autocomplete="off" spellcheck="false" placeholder="粘贴 App「设置 → Web 访问」里的令牌" style="flex:1">
+            <button class="btn small primary" id="saveToken">保存</button>
+          </div>
+        </div>
+        <div class="row-line sub">改端口会重启服务，请用新地址重新打开本页。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>启动与安装</span></div>
+        <div class="row-line">
+          <span>启动方式</span>
+          <select id="launchMode" class="select">
+            <option value="normal">标准启动（进入首页）</option>
+            <option value="library">直接进入应用库</option>
+            <option value="lastApp">直接打开上次的应用</option>
+            <option value="custom">直接打开指定应用</option>
+          </select>
+        </div>
+        <div class="row-line" id="customAppRow" hidden>
+          <span>指定应用</span>
+          <input class="inline-input wide" id="customAppId" placeholder="com.example.app" autocomplete="off">
+        </div>
+        <div class="row-line" id="customParamsRow" hidden>
+          <span>自定义参数</span>
+          <input class="inline-input wide" id="customParams" placeholder='{"from":"web"}' autocomplete="off">
+        </div>
+        <div class="row-line"><span>安装前确认</span><label class="switch"><input type="checkbox" id="confirmInstallSetting"><i></i></label></div>
+        <div class="row-line"><span>显示风险提示</span><label class="switch"><input type="checkbox" id="showWarnings"><i></i></label></div>
+        <div class="row-line"><span>允许应用读取账号公开信息</span><label class="switch"><input type="checkbox" id="allowAccount"><i></i></label></div>
+        <div class="row-line">
+          <span>认证服务器</span>
+          <input class="inline-input wide" id="authServerURL" placeholder="https://auth.example.com">
+        </div>
+        <div class="form-actions"><button class="btn primary" id="saveSettings">保存设置</button></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span>审计日志</span>
+          <button class="btn small" id="loadAudit">刷新</button>
+        </div>
+        <div class="audit" id="audit"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>会话</span></div>
+        <div class="row-line">
+          <span>退出 Web 控制</span>
+          <button class="btn small danger" id="logoutWeb">退出</button>
+        </div>
+        <div class="row-line sub">退出后立即更换访问令牌，本页与所有旧链接失效；需要回到 App 重新获取新地址。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>关于</span></div>
+        <div class="row-line"><span>版本</span><span class="dim" id="aboutVersion">Kinter</span></div>
+        <div class="row-line"><span>安装到桌面</span><button class="btn small" id="installPWA">安装</button></div>
+        <div class="row-line sub" id="pwaHint">装成 PWA 后可以像 App 一样全屏打开，控制台外壳会离线缓存。</div>
+        <div class="row-line sub">Web 控制台与服务端同源，能力调用一律经过设备上的能力网关。</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 底部标签栏 -->
+  <nav class="tabbar">
+    <button class="tab" data-tab="import">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/><path d="M12 4v9"/><path d="m8 10 4 4 4-4"/></svg>
+      <span>导入应用</span>
+    </button>
+    <button class="tab" data-tab="library">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>
+      <span>应用库</span>
+    </button>
+    <button class="tab" data-tab="store">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l1 12H5l1-12Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+      <span>商店</span>
+    </button>
+    <button class="tab" data-tab="settings">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3M11 17h9"/><circle cx="9" cy="17" r="2"/><path d="M4 12h13M21 12h-1"/><circle cx="19" cy="12" r="2"/></svg>
+      <span>设置</span>
+    </button>
+  </nav>
+</div>
+
+<!-- 应用管理 / 信息 弹层 -->
+<div class="sheet-mask" id="mask" hidden></div>
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-grip"></div>
+  <div class="sheet-title" id="sheetTitle">管理</div>
+  <div class="sheet-body" id="sheetBody"></div>
+  <div class="sheet-actions"><button class="btn ghost" id="sheetClose">关闭</button></div>
+</div>
+
+<div id="loggedOutScreen" class="logout-screen" hidden>
+    <div class="logout-card">
+      <div class="logout-icon">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"/><path d="M15 8l4 4-4 4"/><path d="M19 12H9"/></svg>
+      </div>
+      <h2>已退出 Web 控制</h2>
+      <p>访问令牌已更换，本页和所有旧链接都已失效。</p>
+      <p class="logout-tip">请在 App 的「设置 → Web 端访问」里重新复制访问地址或扫码打开。</p>
+    </div>
+  </div>
+
+<div class="toast" id="toast"></div>
+<script src="/console.js?v=4"></script>
+</body>
+</html>

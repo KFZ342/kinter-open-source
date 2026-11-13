@@ -32,6 +32,9 @@ enum PermissionManager {
 
     // MARK: - 状态查询
 
+    /// 共享定位管理器（authorizationStatus 实例属性需要持有实例）
+    private static let locationManager = CLLocationManager()
+
     /// 查询单个权限状态（异步回调到主线程）
     static func status(for permission: String, completion: @escaping (String) -> Void) {
         switch permission {
@@ -40,15 +43,22 @@ enum PermissionManager {
             complete(s.mapAVStatus, completion)
 
         case "microphone":
-            let s = AVAudioSession.sharedInstance().recordPermission
-            switch s {
-            case .granted:        complete("authorized", completion)
-            case .denied:         complete("denied", completion)
-            default:              complete("notDetermined", completion)
+            if #available(iOS 17.0, *) {
+                switch AVAudioApplication.shared.recordPermission {
+                case .granted:    complete("authorized", completion)
+                case .denied:     complete("denied", completion)
+                default:          complete("notDetermined", completion)
+                }
+            } else {
+                switch AVAudioSession.sharedInstance().recordPermission {
+                case .granted:    complete("authorized", completion)
+                case .denied:     complete("denied", completion)
+                default:          complete("notDetermined", completion)
+                }
             }
 
         case "location":
-            let s = CLLocationManager.authorizationStatus()
+            let s = Self.locationManager.authorizationStatus
             switch s {
             case .authorizedWhenInUse, .authorizedAlways:
                 complete("authorized", completion)
@@ -236,97 +246,100 @@ enum PermissionManager {
 
     // MARK: - 申请授权
 
-    /// 申请单个权限，回调最终状态
+    /// 申请单个权限，回调最终状态。同一权限并发调用只弹一次系统弹窗，回调统一回传。
     static func request(_ permission: String, completion: @escaping (String) -> Void) {
+        guard supportedIDs.contains(permission) else {
+            complete("unsupported", completion)
+            return
+        }
+        // 已有在飞请求：排队等待同一结果，不重复触发系统弹窗。
+        guard enqueueInflight(permission, completion) else { return }
+
+        func finishWithStatus() {
+            status(for: permission) { s in flushInflight(permission, s) }
+        }
+
         switch permission {
         case "camera":
-            AVCaptureDevice.requestAccess(for: .video) { _ in
-                status(for: permission, completion: completion)
-            }
+            AVCaptureDevice.requestAccess(for: .video) { _ in finishWithStatus() }
 
         case "microphone":
-            AVAudioSession.sharedInstance().requestRecordPermission { _ in
-                status(for: permission, completion: completion)
+            if #available(iOS 17.0, *) {
+                AVAudioApplication.requestRecordPermission { _ in finishWithStatus() }
+            } else {
+                AVAudioSession.sharedInstance().requestRecordPermission { _ in finishWithStatus() }
             }
 
         case "location":
-            requestLocation(completion)
+            requestLocation(permission)
 
         case "photo":
-            PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in
-                status(for: permission, completion: completion)
-            }
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in finishWithStatus() }
 
         case "savePhoto":
-            PHPhotoLibrary.requestAuthorization(for: .addOnly) { _ in
-                status(for: permission, completion: completion)
-            }
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { _ in finishWithStatus() }
 
         case "contacts":
-            CNContactStore().requestAccess(for: .contacts) { _, _ in
-                status(for: permission, completion: completion)
-            }
+            CNContactStore().requestAccess(for: .contacts) { _, _ in finishWithStatus() }
 
         case "calendar":
-            EKEventStore().requestAccess(to: .event) { _, _ in
-                status(for: permission, completion: completion)
+            if #available(iOS 17.0, *) {
+                EKEventStore().requestFullAccessToEvents { _, _ in finishWithStatus() }
+            } else {
+                EKEventStore().requestAccess(to: .event) { _, _ in finishWithStatus() }
             }
 
         case "reminder":
-            EKEventStore().requestAccess(to: .reminder) { _, _ in
-                status(for: permission, completion: completion)
+            if #available(iOS 17.0, *) {
+                EKEventStore().requestFullAccessToReminders { _, _ in finishWithStatus() }
+            } else {
+                EKEventStore().requestAccess(to: .reminder) { _, _ in finishWithStatus() }
             }
 
         case "notification":
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
-                status(for: permission, completion: completion)
+                finishWithStatus()
             }
 
         case "bluetooth":
-            requestBluetooth(completion)
+            requestBluetooth(permission)
 
         case "motion":
             // 首次 query 触发系统弹窗；直接返回当前状态
-            status(for: permission, completion: completion)
+            finishWithStatus()
 
         case "speech":
-            SFSpeechRecognizer.requestAuthorization { _ in
-                status(for: permission, completion: completion)
-            }
+            SFSpeechRecognizer.requestAuthorization { _ in finishWithStatus() }
 
         case "biometric":
-            requestBiometric(completion)
+            requestBiometric(permission)
 
         case "health":
-            requestHealth(completion)
+            requestHealth(permission)
 
         case "att":
             guard #available(iOS 14, *) else {
-                complete("unsupported", completion)
+                flushInflight(permission, "unsupported")
                 return
             }
-            ATTrackingManager.requestTrackingAuthorization { _ in
-                status(for: permission, completion: completion)
-            }
+            ATTrackingManager.requestTrackingAuthorization { _ in finishWithStatus() }
 
         case "localNetwork":
-            requestLocalNetwork(completion)
+            requestLocalNetwork(permission)
 
         case "nfc", "nearby":
             // 无程序化授权入口：授权发生在对应系统会话（NFC 扫描 / 近距离测量）启动时，
             // 此处仅回读设备支持状态，避免在非交互场景伪造弹窗。
-            status(for: permission, completion: completion)
+            finishWithStatus()
 
         case "mediaLibrary":
-            MPMediaLibrary.requestAuthorization { _ in
-                status(for: permission, completion: completion)
-            }
+            MPMediaLibrary.requestAuthorization { _ in finishWithStatus() }
 
         case "homeKit":
-            requestHomeKit(completion)
+            requestHomeKit(permission)
 
         default:
-            status(for: permission, completion: completion)
+            finishWithStatus()
         }
     }
 
@@ -335,17 +348,51 @@ enum PermissionManager {
     private static var locationRequester: CLLocationManager?
     private static var locationRequestDelegate: LocationRequestDelegate?
     fileprivate static var bluetoothRequester: CBCentralManager?
-    fileprivate static var bluetoothHandler: ((String) -> Void)?
+    fileprivate static var bluetoothPermission: String?
+    /// 强持有蓝牙权限申请的 delegate（delegate 是 weak，必须有人持有否则立即释放）
+    fileprivate static var bluetoothDelegate: BluetoothRequestDelegate?
 
-    private static func requestLocation(_ completion: @escaping (String) -> Void) {
+    // MARK: - 并发去重
+
+    /// 同一权限正在申请时，后续请求把回调排进队列；系统弹窗只弹一次，
+    /// 最终状态到达后统一回传，避免第二个请求覆盖第一个导致回调丢失。
+    private static let inflightLock = NSLock()
+    private static var inflight: [String: [(String) -> Void]] = [:]
+
+    /// 返回 true 表示本次是首发请求（需要触发系统弹窗）；false 表示已有在飞请求，仅排队。
+    fileprivate static func enqueueInflight(_ permission: String,
+                                        _ completion: @escaping (String) -> Void) -> Bool {
+        inflightLock.lock()
+        if inflight[permission] != nil {
+            inflight[permission]?.append(completion)
+            inflightLock.unlock()
+            return false
+        }
+        inflight[permission] = [completion]
+        inflightLock.unlock()
+        return true
+    }
+
+    /// 在飞请求结束：取出全部排队回调，主线程统一回传后清空登记表。
+    fileprivate static func flushInflight(_ permission: String, _ status: String) {
+        inflightLock.lock()
+        let queued = inflight[permission] ?? []
+        inflight[permission] = nil
+        inflightLock.unlock()
+        DispatchQueue.main.async {
+            queued.forEach { $0(status) }
+        }
+    }
+
+    private static func requestLocation(_ permission: String) {
         let mgr = CLLocationManager()
         locationRequester = mgr
         let delegate = LocationRequestDelegate { _ in
             // 用户做出选择后查询状态
-            status(for: "location") { s in
-                completion(s)
+            status(for: permission) { s in
                 locationRequester = nil
                 locationRequestDelegate = nil
+                flushInflight(permission, s)
             }
         }
         locationRequestDelegate = delegate
@@ -354,43 +401,43 @@ enum PermissionManager {
         // 兜底：delegate 未在 3 秒内回调（如已是授权态）时也返回状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak mgr] in
             guard locationRequester === mgr else { return }
-            status(for: "location") { s in
-                completion(s)
+            status(for: permission) { s in
                 locationRequester = nil
                 locationRequestDelegate = nil
+                flushInflight(permission, s)
             }
         }
     }
 
-    private static func requestBluetooth(_ completion: @escaping (String) -> Void) {
+    private static func requestBluetooth(_ permission: String) {
         guard #available(iOS 13.1, *) else {
-            completion("unsupported")
+            flushInflight(permission, "unsupported")
             return
         }
         let mgr = CBCentralManager()
         bluetoothRequester = mgr
-        bluetoothHandler = completion
-        mgr.delegate = BluetoothRequestDelegate()
+        bluetoothPermission = permission
+        let delegate = BluetoothRequestDelegate()
+        Self.bluetoothDelegate = delegate
+        mgr.delegate = delegate
     }
 
-    private static func requestBiometric(_ completion: @escaping (String) -> Void) {
+    private static func requestBiometric(_ permission: String) {
         let ctx = LAContext()
         var err: NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
-            status(for: "biometric", completion: completion)
+            status(for: permission) { s in flushInflight(permission, s) }
             return
         }
         ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "验证身份以授权小程序操作") { _, _ in
-            DispatchQueue.main.async {
-                status(for: "biometric", completion: completion)
-            }
+            status(for: permission) { s in flushInflight(permission, s) }
         }
     }
 
-    private static func requestHealth(_ completion: @escaping (String) -> Void) {
+    private static func requestHealth(_ permission: String) {
         guard HKHealthStore.isHealthDataAvailable(),
               let read = HKObjectType.quantityType(forIdentifier: .stepCount) else {
-            completion("unsupported")
+            flushInflight(permission, "unsupported")
             return
         }
         let store = HKHealthStore()
@@ -399,13 +446,11 @@ enum PermissionManager {
         // 真机崩溃日志（bug_type 309 / EXC_CRASH·SIGABRT）就是走到这里挂的。
         let thrown = ObjCExceptionCatcher.catchException {
             store.requestAuthorization(toShare: [], read: [read]) { _, _ in
-                DispatchQueue.main.async {
-                    status(for: "health", completion: completion)
-                }
+                status(for: permission) { s in flushInflight(permission, s) }
             }
         }
         if thrown != nil {
-            completion("unsupported")
+            flushInflight(permission, "unsupported")
         }
     }
 
@@ -415,21 +460,21 @@ enum PermissionManager {
 
     /// 本地网络无状态 API，只能通过真实发起本地访问触发系统弹窗。
     /// 用一次短暂的 Bonjour 探测触发弹窗（约 4 秒后结束探测）。
-    private static func requestLocalNetwork(_ completion: @escaping (String) -> Void) {
+    private static func requestLocalNetwork(_ permission: String) {
         guard #available(iOS 14, *) else {
-            completion("unsupported")
+            flushInflight(permission, "unsupported")
             return
         }
         let probe = LocalNetworkProbe { status in
             localNetworkProbe = nil
-            completion(status)
+            flushInflight(permission, status)
         }
         localNetworkProbe = probe
         probe.start()
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             localNetworkProbe?.finish()
             localNetworkProbe = nil
-            completion("notDetermined")
+            flushInflight(permission, "notDetermined")
         }
     }
 
@@ -437,24 +482,24 @@ enum PermissionManager {
     private static var homeKitDelegate: HomeKitRequestDelegate?
 
     /// HomeKit 在首次访问 homes 时弹授权窗，监听 didUpdateAuthorizationStatus 后回读状态
-    private static func requestHomeKit(_ completion: @escaping (String) -> Void) {
+    private static func requestHomeKit(_ permission: String) {
         let mgr = HMHomeManager()
         homeKitRequester = mgr
         homeKitDelegate = HomeKitRequestDelegate {
-            status(for: "homeKit") { s in
-                completion(s)
+            status(for: permission) { s in
                 homeKitRequester = nil
                 homeKitDelegate = nil
+                flushInflight(permission, s)
             }
         }
         mgr.delegate = homeKitDelegate
         _ = mgr.homes // 触发首次授权弹窗
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak mgr] in
             guard homeKitRequester === mgr else { return }
-            status(for: "homeKit") { s in
-                completion(s)
+            status(for: permission) { s in
                 homeKitRequester = nil
                 homeKitDelegate = nil
+                flushInflight(permission, s)
             }
         }
     }
@@ -529,7 +574,7 @@ private final class BluetoothRequestDelegate: NSObject, CBCentralManagerDelegate
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         let status: String
         if #available(iOS 13.1, *) {
-            switch central.authorization {
+            switch CBManager.authorization {
             case .allowedAlways: status = "authorized"
             case .denied:        status = "denied"
             case .restricted:    status = "restricted"
@@ -538,8 +583,10 @@ private final class BluetoothRequestDelegate: NSObject, CBCentralManagerDelegate
         } else {
             status = "unsupported"
         }
-        PermissionManager.bluetoothHandler?(status)
-        PermissionManager.bluetoothHandler = nil
+        if let permission = PermissionManager.bluetoothPermission {
+            PermissionManager.flushInflight(permission, status)
+        }
+        PermissionManager.bluetoothPermission = nil
         PermissionManager.bluetoothRequester = nil
     }
 }

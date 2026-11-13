@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f151d">
+<title>Kinter for Web</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="app.css?v=20261114b">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><span>K</span><i></i></div>
+      <div class="brand-text"><strong>Kinter</strong><span>FOR WEB</span></div>
+    </div>
+
+    <div class="side-label">工作区</div>
+    <nav class="side-nav">
+      <button class="nav-item active" data-nav="apps" title="⌘1 应用库">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>
+        <span>应用库</span><em id="navCount">0</em>
+      </button>
+      <button class="nav-item" data-nav="disk" title="⌘2 文件浏览器">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 13h17"/><circle cx="7" cy="16" r="1"/><circle cx="11" cy="16" r="1"/></svg>
+        <span>文件浏览器</span><em id="diskCount">—</em>
+      </button>
+      <button class="nav-item" data-nav="import" title="⌘3 导入小程序">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v11"/><path d="m8 10 4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span>导入小程序</span>
+      </button>
+      <button class="nav-item" data-nav="settings" title="⌘4 设置与数据">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+        <span>设置与数据</span>
+      </button>
+    </nav>
+
+    <div class="side-card">
+      <div class="runtime-row"><span class="pulse"></span><b>本地运行时</b></div>
+      <p>小程序、文件与数据只保存在这台设备的 LocalStorage。</p>
+      <div class="storage-track"><i id="storageBar"></i></div>
+      <div class="storage-meta"><span id="storageText">0 KB</span><span>上限约 5 MB</span></div>
+    </div>
+
+    <div class="side-foot">
+      <button class="ghost-round" id="themeToggle" title="切换外观">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <span>v1.0 · Browser Runtime</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title-block">
+        <h1 id="pageTitle">应用库</h1>
+        <p id="pageSub">浏览器里的 Kinter，开箱即用，不依赖设备。</p>
+      </div>
+      <div class="top-actions">
+        <label class="search" title="⌘K 搜索">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input id="searchInput" placeholder="搜索已安装的小程序" autocomplete="off">
+        </label>
+        <button class="btn primary" id="importTop" title="⌘I 导入 ZIP">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          导入
+        </button>
+      </div>
+    </header>
+
+    <section class="view" id="viewApps">
+      <div class="library-stats">
+        <div><strong id="statApps">0</strong><span>应用</span></div>
+        <div><strong id="statCaps">0</strong><span>可用能力</span></div>
+        <div><strong id="statSize">0 KB</strong><span>本地占用</span></div>
+        <p>导入的 ZIP 在浏览器内解压，应用与数据只保存在 LocalStorage。</p>
+      </div>
+
+      <div class="section-head">
+        <div><h3>应用</h3><span id="appCountText">还没有应用</span></div>
+        <div class="segmented" id="sortTabs">
+          <button class="active" data-sort="recent">最近</button>
+          <button data-sort="name">名称</button>
+        </div>
+      </div>
+      <div class="app-grid" id="appGrid"></div>
+      <div class="empty" id="emptyState">
+        <div class="empty-art"><span></span><span></span><span></span></div>
+        <h4>这里还很空</h4>
+        <p>把一个 Kinter 小程序 ZIP 拖进来，或者点下面的按钮开始。</p>
+        <button class="btn primary" id="emptyImport">选择 ZIP 安装包</button>
+      </div>
+    </section>
+
+    <section class="view" id="viewDisk" hidden>
+      <div class="disk-hero">
+        <div class="disk-id">
+          <div class="disk-drive">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M3.5 13h17"/><circle cx="7" cy="16.3" r="1"/><circle cx="11" cy="16.3" r="1"/></svg>
+          </div>
+          <div><h2>LocalStorage</h2><p>本地磁盘 · 浏览器持久化存储</p></div>
+        </div>
+        <div class="disk-metrics">
+          <div><strong id="diskUsed">0 B</strong><span>已用</span></div>
+          <div><strong id="diskFree">0 B</strong><span>可用</span></div>
+          <div><strong id="diskFiles">0</strong><span>文件</span></div>
+        </div>
+        <div class="disk-meter"><i id="diskBar"></i></div>
+      </div>
+
+      <div class="disk-browser">
+        <aside class="disk-rail">
+          <div class="disk-rail-head">位置</div>
+          <div class="disk-tree" id="diskTree"></div>
+          <div class="disk-rail-foot">约 5 MB 持久化空间</div>
+        </aside>
+        <section class="disk-pane">
+          <div class="disk-pathbar">
+            <div class="disk-breadcrumb" id="diskBreadcrumb"></div>
+            <div class="disk-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input id="diskSearch" placeholder="搜索整块磁盘" autocomplete="off">
+            </div>
+            <button class="disk-refresh" id="diskRefresh" title="刷新">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2 6"/><path d="M20 4v7h-7"/></svg>
+            </button>
+          </div>
+          <div class="disk-head"><span>名称</span><span>类型</span><span>大小</span><span></span></div>
+          <div class="disk-list" id="diskList"></div>
+          <div class="disk-empty" id="diskEmpty" hidden>
+            <div class="disk-empty-icon">◌</div>
+            <b>这个文件夹是空的</b>
+            <span>应用运行后写入的数据会出现在这里。</span>
+          </div>
+          <div class="disk-status"><span id="diskStatus">正在读取磁盘…</span><span>LocalStorage · 持久化</span></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="viewImport" hidden>
+      <div class="panel import-panel">
+        <div class="panel-head">
+          <div><h3>导入小程序</h3><p>支持 manifest.json + 页面/资源，ZIP 会解压后存进 LocalStorage。</p></div>
+          <span class="pill">本地解析，不上传</span>
+        </div>
+        <div class="dropzone" id="dropzone">
+          <div class="drop-art">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          </div>
+          <h4>把 ZIP 拖到这里</h4>
+          <p>或者 <button class="text-link" id="pickZip">从电脑选择文件</button></p>
+          <input type="file" id="zipInput" accept=".zip,application/zip" hidden>
+          <div class="drop-tags"><span>.zip</span><span>manifest.json</span><span>index.html / .ktml</span></div>
+        </div>
+        <div class="import-preview" id="importPreview" hidden></div>
+        <div class="import-log" id="importLog" hidden></div>
+      </div>
+    </section>
+
+    <section class="view" id="viewSettings" hidden>
+      <div class="settings-grid">
+        <div class="panel">
+          <div class="panel-head"><div><h3>本地存储</h3><p>所有小程序与数据都在 LocalStorage。</p></div></div>
+          <div class="storage-big"><strong id="settingsStorage">0 KB</strong><span>已使用 / 约 5 MB</span></div>
+          <div class="storage-track big"><i id="settingsStorageBar"></i></div>
+          <div class="data-list" id="dataList"></div>
+          <div class="panel-actions">
+            <button class="btn danger ghost-danger" id="clearAll">清空全部数据</button>
+            <button class="btn" id="exportLibrary">导出备份</button>
+            <label class="btn" for="importBackup">导入备份</label>
+            <input type="file" id="importBackup" accept="application/json,.json" hidden>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>浏览器权限</h3><p>能给的权限都交给浏览器原生实现。</p></div><button class="btn small" id="refreshPerms">刷新</button></div>
+          <div class="perm-list" id="permList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>关于运行时</h3><p>Kinter for Web · 纯浏览器宿主</p></div></div>
+          <div class="about-rows">
+            <div><span>运行方式</span><b>iframe + wx SDK</b></div>
+            <div><span>数据位置</span><b>LocalStorage</b></div>
+            <div><span>应用包</span><b>ZIP（本地解压）</b></div>
+            <div><span>能力实现</span><b>浏览器原生 API</b></div>
+            <div><span>不依赖</span><b>iOS 设备 / 服务器</b></div>
+          </div>
+          <p class="about-note">导入的小程序代码只在本机运行。来源不明的包仍可能读取你在同一站点下的数据，导入前请确认来源。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 运行器 -->
+<div class="runner" id="runner" hidden>
+  <div class="runner-window">
+    <div class="runner-bar">
+      <div class="runner-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <button class="runner-back" id="runnerBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m14 6-6 6 6 6"/></svg>
+        返回
+      </button>
+      <div class="runner-title"><div class="mini-icon" id="runnerIcon">K</div><div><b id="runnerName">小程序</b><span id="runnerMeta">Web Runtime</span></div></div>
+      <div class="runner-tools">
+        <button class="runner-tool" id="runnerConsoleToggle" title="运行日志 · ⌘L">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m5 7 5 5-5 5"/><path d="M12 17h7"/></svg>
+          <span class="tool-badge" id="consoleBadge" hidden>0</span>
+        </button>
+        <button class="runner-tool" id="runnerReload" title="重新加载">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2 6"/><path d="M20 4v7h-7"/></svg>
+        </button>
+        <button class="runner-tool" id="runnerClose" title="关闭 · Esc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="runner-body"><iframe id="appFrame" title="Kinter 小程序" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" allow="camera; microphone; geolocation; clipboard-read; clipboard-write; fullscreen"></iframe></div>
+    <div class="runner-console" id="runnerConsole" hidden>
+      <div class="runner-console-bar">
+        <span class="console-dot"></span><b>运行日志</b><span id="consoleCount">0</span>
+        <div><button id="clearConsole">清空</button><button id="closeConsole">收起</button></div>
+      </div>
+      <pre id="consoleOutput">等待小程序输出…</pre>
+    </div>
+  </div>
+</div>
+
+<div class="modal-root" id="modalRoot"></div>
+<div class="toast-root" id="toastRoot"></div>
+
+<script src="ktml.js?v=20261114b"></script>
+<script src="zip.js?v=20261114b"></script>
+<script src="app.js?v=20261114b"></script>
+</body>
+</html>

@@ -1,5 +1,8 @@
 import UIKit
-import WebKit
+import os
+@preconcurrency import WebKit
+
+private let logger = Logger(subsystem: "com.kinter.host", category: "render")
 
 /// 小程序 WebView 运行单元。
 ///
@@ -139,8 +142,12 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
 
     // MARK: - 复用生命周期
 
-    /// 回池前：停加载、清回调、摘导航代理，避免残留状态串到下一个会话。
+    /// 回池前：停加载、清回调、摘导航代理与桥接 handler，避免残留状态串到下一个会话。
     private func prepareForReuse() {
+        if let controller = webView?.configuration.userContentController {
+            controller.removeScriptMessageHandler(forName: BridgeMessageHandler.handlerName)
+            controller.removeScriptMessageHandler(forName: "jslog")
+        }
         webView?.stopLoading()
         webView?.navigationDelegate = nil
         onJavascriptLog = nil
@@ -230,8 +237,9 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
         }
         func userContentController(_ ucc: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
-            guard message.name == "jslog",
-                  let body = message.body as? [String: Any] else { return }
+            guard message.name == "jslog" else { return }
+            if !message.frameInfo.isMainFrame { return }
+            guard let body = message.body as? [String: Any] else { return }
             // 批量：[[level, message], ...]（宽松解析，杜绝桥接失败静默吞日志）
             if let batch = body["batch"] as? [[Any]] {
                 for pair in batch where pair.count >= 2 {
@@ -273,6 +281,12 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
 
     deinit {
         obs?.invalidate()
+        // WKUserContentController 对 handler 是强引用；不摘除会形成 controller → handler →
+        // gateway 的残留链条，WebView 回池/销毁后状态串到下一个会话。
+        if let controller = webView?.configuration.userContentController {
+            controller.removeScriptMessageHandler(forName: BridgeMessageHandler.handlerName)
+            controller.removeScriptMessageHandler(forName: "jslog")
+        }
         // 停止加载并移除导航代理，及时释放 WebKit 进程资源
         webView?.stopLoading()
         webView?.navigationDelegate = nil
@@ -334,12 +348,12 @@ final class MiniAppWebView: UIView, WKNavigationDelegate {
                                                   injectionTime: .atDocumentStart,
                                                   forMainFrameOnly: true))
         } else {
-            print("[Render] ktml.js not found in bundle")
+            logger.fault("ktml.js not found in bundle")
         }
 
         // 再注入 wx SDK
         guard let js = Self.sdkSource("wx") else {
-            print("[Render] wx.js not found in bundle")
+            logger.fault("wx.js not found in bundle")
             return
         }
         controller.addUserScript(WKUserScript(source: js,

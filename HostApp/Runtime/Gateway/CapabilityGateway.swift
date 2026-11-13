@@ -26,6 +26,79 @@ final class CapabilityGateway {
         (providers["networkWatch"] as? NetworkWatchProvider)?.emitter = emit
     }
 
+    /// 只做授权检查，不调用设备 Provider。
+    /// 供 Web 控制台使用：能力仍然要过 manifest / 用户禁用 / 恒定拒绝 / 安全模式 / 权限策略，
+    /// 检查通过后由浏览器用自己的摄像头、麦克风采集。
+    ///
+    /// 授权绑定三元组：本网关实例 = 一个会话（WebAppSession / 原生 Runner 各持独立实例），
+    /// 调用方身份取自已在宿主侧解析的 manifest.appId（不是前端传入的字符串），能力为 module；
+    /// 三者一起参与判定，不会出现“A 会话的授权被 B 会话复用”。
+    func authorizeWebNative(module: String, method: String,
+                            completion: @escaping (Result<Void, GatewayError>) -> Void) {
+        let start = Date()
+        func finish(_ r: Result<Void, GatewayError>) {
+            let ms = Int(Date().timeIntervalSince(start) * 1000)
+            switch r {
+            case .success:
+                audit.record(module: module, method: method,
+                             result: .success(["webNative": true, "source": "web"]), durationMs: ms)
+            case .failure(let err):
+                audit.record(module: module, method: method,
+                             result: .failure(err), durationMs: ms)
+            }
+            completion(r)
+        }
+
+        guard let manifest = currentManifest else {
+            return finish(.failure(.unsupported("no manifest loaded")))
+        }
+        guard manifest.declares(module) else {
+            return finish(.failure(.capabilityNotDeclared(module)))
+        }
+        if disabledCapabilities.contains(module) {
+            return finish(.failure(.permissionDenied(module)))
+        }
+        // 恒定拒绝能力兜底：即使 manifest 误声明 / 注册表被误注册，也不放行。
+        if SecurityPolicy.isHardDenied(module) {
+            return finish(.failure(.permissionDenied(module)))
+        }
+
+        // 与原生小程序走同一套安全模式判定：一次性令牌 / 信任清单 / 组合规则。
+        // Web 路径不能绕开用户在宿主横幅里的同意；身份同样取宿主解析的 manifest.appId。
+        switch SecurityInterceptor.shared.evaluate(
+            module: module, method: method,
+            appId: manifest.appId, appName: manifest.name) {
+        case .allow:
+            break
+        case .denyGrantable, .denyHard:
+            return finish(.failure(.permissionDenied(module)))
+        }
+
+        // Web 原生采集用的是操作者本机的摄像头/麦克风，不是设备能力：
+        // 系统权限状态不约束浏览器采集；真正的采集同意由浏览器自己的权限弹窗给出。
+        guard let provider = providers[module],
+              let level = registry.level(for: module) else {
+            return finish(.failure(.unsupported(module)))
+        }
+        if level == .l3 { return finish(.failure(.unsupported(module))) }
+
+        if let type = type(of: provider) as? RegionSensitiveProvider.Type,
+           !type.isAvailableInCurrentRegion() {
+            return finish(.failure(.regionUnsupported(module)))
+        }
+
+        // 浏览器采集不依赖设备的系统权限（摄像头/麦克风用的是操作者本机），
+        // 设备侧的授权状态不应把 Web 原生路径挡住；浏览器会自己弹权限请求。
+        if module == "camera" || module == "microphone" {
+            return finish(.success(()))
+        }
+
+        PermissionPolicy.shared.check(module: module, level: level) { allowed in
+            guard allowed else { return finish(.failure(.permissionDenied(module))) }
+            finish(.success(()))
+        }
+    }
+
     func invoke(module: String, method: String, params: [String: Any],
                 completion: @escaping (Result<Any, GatewayError>) -> Void) {
         let start = Date()
@@ -45,8 +118,13 @@ final class CapabilityGateway {
         if disabledCapabilities.contains(module) {
             return finish(.failure(.permissionDenied(module)))
         }
+        // 恒定拒绝能力兜底：不查令牌、不给授权入口，manifest 误声明也不放行。
+        if SecurityPolicy.isHardDenied(module) {
+            return finish(.failure(.permissionDenied(module)))
+        }
 
-        // 安全模式：三级判定（策略细节见 SecurityInterceptor）
+        // 安全模式：三级判定（一次性令牌 / 信任清单 / 组合规则，细节见 SecurityInterceptor）。
+        // 调用方身份取自已在宿主侧解析的 manifest.appId，不接受前端传入的身份字符串。
         switch SecurityInterceptor.shared.evaluate(
             module: module, method: method,
             appId: manifest.appId, appName: manifest.name) {

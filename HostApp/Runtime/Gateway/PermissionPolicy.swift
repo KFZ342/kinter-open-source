@@ -35,8 +35,16 @@ final class PermissionPolicy {
             let s = AVCaptureDevice.authorizationStatus(for: .video)
             completion(s == .authorized || s == .notDetermined)
         case "microphone":
-            let s = AVAudioSession.sharedInstance().recordPermission
-            completion(s == .granted || s == .undetermined)
+            // iOS 17 起 recordPermission 迁移到 AVAudioApplication；AVAudioSession.recordPermission 已废弃。
+            let undeterminedOrGranted: Bool
+            if #available(iOS 17.0, *) {
+                let s = AVAudioApplication.shared.recordPermission
+                undeterminedOrGranted = (s == .granted || s == .undetermined)
+            } else {
+                let s = AVAudioSession.sharedInstance().recordPermission
+                undeterminedOrGranted = (s == .granted || s == .undetermined)
+            }
+            completion(undeterminedOrGranted)
         case "location":
             // 复用单例，避免每次调用新建 CLLocationManager
             let status = Self.locationManager.authorizationStatus

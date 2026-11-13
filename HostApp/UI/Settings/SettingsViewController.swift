@@ -30,13 +30,14 @@ final class SettingsViewController: UIViewController {
 }
 
 extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int { 4 }
+    func numberOfSections(in tableView: UITableView) -> Int { 5 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return 1              // 账号
         case 1: return 2              // 安全模式：开关 + 隐私记录入口
         case 2: return 3              // 开发者签名：要求签名 + 开发模式 + 信任名单
+        case 3: return 1              // Web 访问
         default: return 1             // 关于
         }
     }
@@ -66,6 +67,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         case 0: return "账号"
         case 1: return "安全模式"
         case 2: return "开发者签名"
+        case 3: return "互联"
         default: return "关于"
         }
     }
@@ -139,6 +141,23 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                 cell.accessoryType = count > 0 ? .disclosureIndicator : .none
             }
 
+        case 3:
+            cell.textLabel?.text = "Web 端访问"
+            cell.textLabel?.textColor = .label
+            cell.accessoryView = nil
+            cell.accessoryType = .disclosureIndicator
+            let statusLabel = UILabel()
+            statusLabel.font = .systemFont(ofSize: 14)
+            if WebAccessService.shared.isRunning {
+                statusLabel.text = "运行中 :\(WebAccessService.shared.runningPort ?? 0)"
+                statusLabel.textColor = .secondaryLabel
+            } else {
+                statusLabel.text = "已关闭"
+                statusLabel.textColor = .tertiaryLabel
+            }
+            statusLabel.sizeToFit()
+            cell.accessoryView = statusLabel
+
         default:
             cell.accessoryView = nil
             cell.textLabel?.text = "Kinter \(Self.versionText)"
@@ -159,6 +178,10 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         }
         if indexPath.section == 2, indexPath.row == 2 {
             clearTrustedDevelopers()
+            return
+        }
+        if indexPath.section == 3 {
+            navigationController?.pushViewController(WebAccessViewController(), animated: true)
         }
     }
 

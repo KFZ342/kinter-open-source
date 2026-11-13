@@ -103,6 +103,18 @@
 - ✅ 付费小程序：manifest 声明售价，商店展示价格，购买后解锁
 - ✅ 发布接口设计好了（`/api/apps/publish`），后端可以自己接
 
+### 🌐 Web 端访问
+- ✅ 设备内起本地 HTTP 服务，浏览器打开即用
+- ✅ Web 控制台 1:1 复刻 App：导入应用 / 应用库 / 商店 / 设置
+- ✅ 小程序页面在浏览器里运行，`wx.*` 能力经桥接回到设备网关
+- ✅ 支持查看 Kinter 信息、修改偏好设置（安全模式、启动方式、端口等）
+- ✅ 端口被占用自动顺延并在控制台提示真实地址；支持 HEAD、令牌一键轮换、库变更自动刷新
+- ✅ Web 操作时 App 顶部横幅实时显示“正在干什么”，一键「踢出」立即收回控制权
+- ✅ Web 原生采集：相机、麦克风由浏览器采集，设备侧仍做 manifest / 安全模式 / 权限策略判定
+- ✅ 支持 PWA：可安装到桌面，控制台外壳离线缓存
+- ✅ Web 端可主动注销，注销后立即更换令牌
+- ✅ 详见 [docs/WEB_ACCESS.md](docs/WEB_ACCESS.md)
+
 ### 🤖 让 AI 帮你写小程序
 - ✅ 接 OpenAI 兼容接口，说一句话就生成一个小程序包
 - ✅ 生成完还能继续对话改，不满意就重新生成
@@ -240,13 +252,15 @@ HostApp/           宿主 App：Runtime / Core / AI / Auth / UI / Intents / Stor
   Runtime/
     Gateway/       能力网关 + 50 个 Provider
     Security/      安全模式：分级、拦截、令牌、信任、落盘
+    WebAccess/     本地 HTTP 服务、令牌轮换、Web 控制台资源
     Support/       ObjCExceptionCatcher 等底层支撑
+  Resources/web/   Web 控制台 / PWA / Kinter for Web
   UI/
     Security/      橙色横幅、隐私记录图表
 SDK/               wx.js（桥接 SDK）、ktml.js（模板编译器）
 StoreTools/        静态商店源构建（build_index.py）
 Tools/             xcodegen spec、未签名 IPA 构建脚本、sign_app.py 签名工具
-docs/              CAPABILITIES / KTML / WX_API / DEPLOY / ROADMAP
+docs/              CAPABILITIES / KTML / WX_API / DEPLOY / ROADMAP / WEB_ACCESS
 SIGNING.md         自签安装指引
 ```
 
