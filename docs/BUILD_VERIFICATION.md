@@ -14,10 +14,10 @@
 | Scheme / Target | `Kinter`（另有 `KinterActivityWidget` 扩展，随主 target 一起构建） |
 | Destination | 已启动模拟器 `ModelerPro-iPad`，UDID `4B45E022-A012-4D82-BD70-FC6DFD7BC1F8`，iOS 18.0 |
 | Bundle ID | `com.kinter.host`（扩展 `com.kinter.host.activitywidget`） |
-| App 版本 | 1.2.0 (build 3) |
+| App 版本 | 1.6.0 (build 7) |
 | 构建配置 | Debug，`CODE_SIGNING_ALLOWED=NO` |
 | 构建产物 | `~/Library/Developer/Xcode/DerivedData/Kinter-ebfofvqsivbrbnaidrmyjniydiuo/Build/Products/Debug-iphonesimulator/Kinter.app` |
-| 构建日志 | `/tmp/kinter-build.log`（未写入仓库） |
+| 构建日志 | `/tmp/kinter-1.6.0-build.log`（未写入仓库） |
 
 ## 2. 构建命令与结果
 
@@ -26,7 +26,7 @@
 ```bash
 xcodebuild -project Kinter.xcodeproj -scheme Kinter \
   -destination 'id=4B45E022-A012-4D82-BD70-FC6DFD7BC1F8' \
-  -configuration Debug CODE_SIGNING_ALLOWED=NO build
+  -configuration Debug build
 ```
 
 ### 结果汇总
@@ -36,7 +36,7 @@ xcodebuild -project Kinter.xcodeproj -scheme Kinter \
 | 第 1 次 | 构建系统崩溃 | 1（服务级，非源码错误） | `error: unexpected service error: The Xcode build system has crashed. Build again to continue.`，发生在首次工具调用被中断之后，属构建系统残留状态，重试即恢复。 |
 | 第 2 次 | 失败 | 2 | 桥接 handler 的主框架判断可选绑定类型不匹配（详见 §3）。 |
 | 第 3 次 | 失败 | 3 | TTSProvider 内参数名与存储属性同名遮蔽（详见 §3）。 |
-| 第 4 次（最终） | **BUILD SUCCEEDED** | **0** | 编译单元 150，warning 15（均为废弃 API / 并发建议，非阻塞）。 |
+| 第 4 次（最终） | **BUILD SUCCEEDED** | **0** | 编译单元 150，warning 15（均为废弃 API / 并发建议，非阻塞）；产物版本已确认为 1.6.0 (build 7)。 |
 
 最终退出码 `0`，日志末行 `** BUILD SUCCEEDED **`。本次为增量构建（改动文件批量修复后统一重编，未反复触发全量构建）；未单独统计 clean build 时长。
 

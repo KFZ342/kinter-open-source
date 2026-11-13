@@ -1,7 +1,7 @@
 # Kinter · TestFlight 分发完整流程
 
 > 依据 Apple 官方文档整理（App Store Connect Help / Xcode 帮助 / Apple Developer Forums）
-> 适用版本：Kinter 1.6.0 (4)，Bundle ID `com.kinter.host`
+> 适用版本：Kinter 1.6.0 (7)，Bundle ID `com.kinter.host`
 
 ## 阶段 0：一次性前置准备（约 30 分钟）
 
@@ -17,7 +17,7 @@
 
 ```
 1. 构建前版本号确认：HostApp/App/Info.plist 里 CFBundleShortVersionString（如 1.6.0）与
-   CFBundleVersion（构建号，每次上传必须递增，如 4→5）
+   CFBundleVersion（构建号，每次上传必须递增，如 7→8）
 
 2. 命令行一键构建（脚本已就绪）：
    ./Tools/build_testflight.sh
